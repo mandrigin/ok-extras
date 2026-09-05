@@ -48,7 +48,7 @@ class Grant:
 def extra_seconds(grants, budget, today):
     total = 0.0
     for grant in grants:
-        if grant.kind == 'minutes' and grant.date == today and grant.budget == budget:
+        if grant.kind == 'minutes' and grant.date == today and grant.budget in {budget, 'all'}:
             total += float(grant.minutes or 0) * 60
     return total
 

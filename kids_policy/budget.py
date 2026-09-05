@@ -1,4 +1,4 @@
-from kids_policy.grants import active_override, extra_seconds
+from kids_policy.grants import extra_seconds
 from kids_policy.schedule import in_play_window, minutes_until_cutoff
 
 
@@ -68,13 +68,25 @@ class Policy:
         from kids_policy.grants import Grant
         return [Grant.from_dict(item) if not isinstance(item, Grant) else item for item in self.state.get('grants', [])]
 
+    def bedtime(self, now):
+        return not in_play_window(now, self.config['play_windows'])
+
+    def burn_unused_at_bedtime(self, now):
+        if not self.bedtime(now):
+            return False
+        base_shared = float(self.config['shared_daily_minutes']) * 60
+        base_digger = float(self.config['digger_daily_minutes']) * 60
+        self.shared.used = max(self.shared.used, base_shared)
+        self.digger.used = max(self.digger.used, base_digger)
+        return True
+
     def play_allowed(self, now):
-        grants = self.grant_objects()
-        if active_override(grants, now):
+        self.burn_unused_at_bedtime(now)
+        if self.remaining('shared') > 0 or self.remaining('digger') > 0:
             return True, None
-        if in_play_window(now, self.config['play_windows']):
-            return True, None
-        return False, 'Play window closed'
+        if self.bedtime(now):
+            return False, 'Bedtime'
+        return False, 'Time is up'
 
     def tick(self, now, mono, running):
         self.state, reset = roll_date(self.state, str(now.date()))
@@ -88,26 +100,27 @@ class Policy:
             self.shared.limit = float(self.config['shared_daily_minutes']) * 60 + extra_seconds(self.grant_objects(), 'shared', today)
             self.digger.limit = float(self.config['digger_daily_minutes']) * 60 + extra_seconds(self.grant_objects(), 'digger', today)
             self.state['warnings'] = {}
-        allowed, reason = self.play_allowed(now)
+        bedtime = self.burn_unused_at_bedtime(now)
         shared_running = set(running) & {'minecraft', 'stardew_valley'}
         digger_running = set(running) & {'digger'}
-        chargeable_shared = shared_running if allowed else set()
-        chargeable_digger = digger_running if allowed else set()
-        _charged, shared_apps, shared_out = self.shared.tick(mono, chargeable_shared)
-        _charged, digger_apps, digger_out = self.digger.tick(mono, chargeable_digger)
+        if bedtime:
+            shared_running |= set(running) & {'vlc'}
+        _charged, shared_apps, shared_out = self.shared.tick(mono, shared_running)
+        _charged, digger_apps, digger_out = self.digger.tick(mono, digger_running)
         for app, value in {**shared_apps, **digger_apps}.items():
             self.apps[app] = self.apps.get(app, 0) + value
         blocked = set()
         reasons = []
-        if not allowed:
-            blocked.update({'digger', 'minecraft', 'stardew_valley', 'vlc'})
-            reasons.append(reason)
-        if shared_out:
+        if self.remaining('shared') <= 0:
             blocked.update({'minecraft', 'stardew_valley'})
             reasons.append('Minecraft + Stardew daily limit reached')
-        if digger_out:
+        if self.remaining('digger') <= 0:
             blocked.add('digger')
             reasons.append('Digger daily limit reached')
+        if self.remaining('shared') <= 0 and self.remaining('digger') <= 0:
+            blocked.add('vlc')
+            if bedtime:
+                reasons.append('Bedtime')
         return blocked, reasons
 
     def remaining(self, name):
@@ -117,7 +130,7 @@ class Policy:
     def snapshot(self, now):
         allowed, reason = self.play_allowed(now)
         grants = [grant.to_dict() if hasattr(grant, 'to_dict') else grant for grant in self.grant_objects()]
-        override = active_override(self.grant_objects(), now)
+        bedtime = self.bedtime(now)
         return {
             'schema_version': 2,
             'date': self.state['date'],
@@ -131,9 +144,10 @@ class Policy:
             'digger_remaining_seconds': self.remaining('digger'),
             'play_allowed': allowed,
             'play_blocked_reason': reason,
-            'minutes_until_cutoff': minutes_until_cutoff(now, self.config['play_windows']) if allowed and not override else 0,
+            'bedtime': bedtime,
+            'minutes_until_cutoff': 0 if bedtime else minutes_until_cutoff(now, self.config['play_windows']),
             'grants': grants,
-            'schedule_override': override.to_dict() if override else None,
+            'schedule_override': None,
             'warnings': dict(self.state.get('warnings', {})),
             'failclosed': bool(self.state.get('failclosed', False)),
         }

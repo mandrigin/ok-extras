@@ -11,7 +11,7 @@ cd "$SRC"
 PYTHONPATH=. python3 -m unittest discover -s tests -v
 
 install -d -m 0755 /opt/omarchy-kids-policy /usr/lib/omarchy-kids /etc/omarchy-kids /var/lib/omarchy-kids /run/omarchy-kids
-cp -a "$SRC/kids_policy" "$SRC/viewer.py" "$SRC/tests" /opt/omarchy-kids-policy/
+cp -a "$SRC/kids_policy" "$SRC/viewer.py" "$SRC/hud.py" "$SRC/tests" /opt/omarchy-kids-policy/
 install -m 0755 "$SRC/bin/"* /usr/bin/
 install -m 0755 "$SRC/lib/"* /usr/lib/omarchy-kids/
 install -m 0644 "$SRC/systemd/"*.service /etc/systemd/system/
@@ -102,6 +102,8 @@ systemctl is-active omarchy-kids-net.service
 
 as_user systemctl --user stop omarchy-kids-game-time-dashboard.service 2>/dev/null || true
 as_user systemd-run --user --collect --unit=omarchy-kids-game-time-dashboard --setenv=WAYLAND_DISPLAY=wayland-1 /usr/bin/python3 /opt/omarchy-kids-policy/viewer.py || true
+as_user systemctl --user stop omarchy-kids-hud.service 2>/dev/null || true
+as_user systemd-run --user --collect --unit=omarchy-kids-hud --setenv=WAYLAND_DISPLAY=wayland-1 /usr/bin/python3 /opt/omarchy-kids-policy/hud.py || true
 as_user omarchy shell io.github.virajshoor.kids-screentime refresh || true
 
 echo EXTRAS_INSTALLED

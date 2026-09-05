@@ -49,14 +49,18 @@ class BudgetTests(unittest.TestCase):
         self.assertEqual(policy.shared.used, 0)
         self.assertEqual(policy.digger.used, 0)
 
-    def test_bedtime_blocks_without_charging(self):
+    def test_bedtime_zeros_unused_limits(self):
         now = dt.datetime(2026, 9, 5, 21, 5)
         policy = self.policy(now=now)
         blocked, reasons = policy.tick(now, 10, {'digger', 'vlc'})
         self.assertIn('vlc', blocked)
         self.assertIn('digger', blocked)
-        self.assertTrue(any('window' in reason.lower() for reason in reasons))
-        self.assertEqual(policy.digger.used, 0)
+        self.assertIn('minecraft', blocked)
+        self.assertEqual(policy.remaining('digger'), 0)
+        self.assertEqual(policy.remaining('shared'), 0)
+        self.assertEqual(policy.digger.used, 600)
+        self.assertEqual(policy.shared.used, 3600)
+        self.assertTrue(any('bedtime' in reason.lower() or 'limit' in reason.lower() for reason in reasons))
 
     def test_minute_grant_extends_shared_only(self):
         saved = {
@@ -74,7 +78,7 @@ class BudgetTests(unittest.TestCase):
         blocked, _reasons = policy.tick(self.now, 0, {'minecraft'})
         self.assertNotIn('minecraft', blocked)
 
-    def test_minutes_at_bedtime_still_blocked(self):
+    def test_minutes_at_bedtime_use_same_engine(self):
         now = dt.datetime(2026, 9, 5, 21, 5)
         saved = {
             'date': '2026-09-05',
@@ -82,29 +86,17 @@ class BudgetTests(unittest.TestCase):
             'shared_used_seconds': 0,
             'digger_used_seconds': 0,
             'grants': [{
-                'id': 'g1', 'kind': 'minutes', 'minutes': 15, 'budget': 'shared',
+                'id': 'g1', 'kind': 'minutes', 'minutes': 1, 'budget': 'all',
                 'date': '2026-09-05', 'child_uid': 1000, 'approver': 'root', 'created_at': 't',
             }],
         }
         policy = Policy(saved, self.config, now, 0)
-        blocked, _reasons = policy.tick(now, 0, {'minecraft'})
-        self.assertIn('minecraft', blocked)
-
-    def test_until_override_opens_window(self):
-        now = dt.datetime(2026, 9, 5, 21, 5)
-        saved = {
-            'date': '2026-09-05',
-            'schema_version': 2,
-            'shared_used_seconds': 0,
-            'digger_used_seconds': 0,
-            'grants': [{
-                'id': 'g2', 'kind': 'until', 'until': '21:10',
-                'date': '2026-09-05', 'child_uid': 1000, 'approver': 'root', 'created_at': 't',
-            }],
-        }
-        policy = Policy(saved, self.config, now, 0)
-        blocked, _reasons = policy.tick(now, 0, {'vlc'})
+        blocked, _reasons = policy.tick(now, 0, {'minecraft', 'digger', 'vlc'})
+        self.assertEqual(policy.remaining('shared'), 60)
+        self.assertEqual(policy.remaining('digger'), 60)
+        self.assertNotIn('minecraft', blocked)
+        self.assertNotIn('digger', blocked)
         self.assertNotIn('vlc', blocked)
-        later = dt.datetime(2026, 9, 5, 21, 10)
-        blocked, _reasons = policy.tick(later, 10, {'vlc'})
-        self.assertIn('vlc', blocked)
+        blocked, _reasons = policy.tick(now, 60, {'minecraft'})
+        self.assertIn('minecraft', blocked)
+        self.assertEqual(policy.remaining('shared'), 0)

@@ -17,6 +17,7 @@ from kids_policy.paths import CGROUP_ROOT, CONFIG, FAILCLOSED, LEGACY_CONFIG, SO
 from kids_policy.scan import games, identity
 from kids_policy.schedule import minutes_until_cutoff, next_open_label
 from kids_policy.store import read_json, write_json
+from kids_policy.windows import hide_pids, show_pids
 
 LOG = logging.getLogger('omarchy-kids-policy')
 
@@ -93,6 +94,7 @@ class Daemon:
         self.running = True
         self.events = []
         self.sock = None
+        self.hidden_pids = set()
 
     def stop(self, *_args):
         self.running = False
@@ -173,6 +175,10 @@ class Daemon:
                     if event:
                         events.append(event)
         events.extend(self.fallback.release(keep))
+        blocked_pids = {ident.pid for app, idents in found.items() if app in blocked for ident in idents}
+        hide_pids(self.uid, blocked_pids - self.hidden_pids)
+        show_pids(self.uid, self.hidden_pids - blocked_pids)
+        self.hidden_pids = blocked_pids
         return events
 
     def may_launch(self, app):
