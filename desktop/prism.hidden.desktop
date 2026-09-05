@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Prism Launcher
+NoDisplay=true
+Hidden=true
+Exec=/usr/bin/true

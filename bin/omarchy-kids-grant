@@ -1,0 +1,53 @@
+#!/usr/bin/python3
+import argparse
+import datetime as dt
+import os
+import pwd
+import sys
+import uuid
+sys.path.insert(0, '/opt/omarchy-kids-policy')
+from kids_policy.client import request
+from kids_policy.migrate import default_config
+from kids_policy.paths import CONFIG
+from kids_policy.store import read_json
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--minutes', type=float)
+    parser.add_argument('--budget', choices=('shared', 'digger'), default='shared')
+    parser.add_argument('--until')
+    parser.add_argument('--id')
+    parser.add_argument('--revoke')
+    args = parser.parse_args()
+    if os.geteuid() != 0:
+        sys.stderr.write('parent authentication required\n')
+        sys.exit(1)
+    if args.revoke:
+        request({'op': 'revoke', 'id': args.revoke})
+        return
+    config = default_config()
+    config.update(read_json(CONFIG, {}) or {})
+    uid = int(config['child_uid'])
+    approver = pwd.getpwuid(os.getuid()).pw_name
+    grant_id = args.id or str(uuid.uuid4())
+    today = str(dt.date.today())
+    created = dt.datetime.now().isoformat(timespec='seconds')
+    if args.until:
+        grant = {
+            'id': grant_id, 'kind': 'until', 'until': args.until, 'date': today,
+            'child_uid': uid, 'approver': approver, 'created_at': created,
+        }
+    elif args.minutes:
+        grant = {
+            'id': grant_id, 'kind': 'minutes', 'minutes': args.minutes, 'budget': args.budget,
+            'date': today, 'child_uid': uid, 'approver': approver, 'created_at': created,
+        }
+    else:
+        parser.error('need --minutes, --until, or --revoke')
+    reply = request({'op': 'grant', 'grant': grant})
+    print(reply['grant']['id'])
+
+
+if __name__ == '__main__':
+    main()

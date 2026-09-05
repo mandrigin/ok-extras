@@ -1,0 +1,43 @@
+#!/usr/bin/python3
+import os
+import shutil
+import sys
+from pathlib import Path
+
+MEDIA = Path('/srv/kids-media/videos')
+PLAYLIST = MEDIA / 'kids-videos.m3u'
+ALLOWED = {'.mp4', '.mkv', '.webm', '.avi', '.mov', '.m4v'}
+
+
+def refresh_playlist():
+    files = sorted(path for path in MEDIA.iterdir() if path.suffix.lower() in ALLOWED and path.is_file())
+    lines = ['#EXTM3U']
+    for path in files:
+        lines.append(f'#EXTINF:-1,{path.stem}')
+        lines.append(str(path))
+    tmp = PLAYLIST.with_suffix('.tmp')
+    tmp.write_text('\n'.join(lines) + '\n')
+    tmp.chmod(0o644)
+    os.replace(tmp, PLAYLIST)
+
+
+def publish(source):
+    source = Path(source).resolve()
+    if not source.is_file() or source.suffix.lower() not in ALLOWED:
+        raise SystemExit('need a complete local video file')
+    dest = MEDIA / source.name
+    if dest.exists():
+        raise SystemExit(f'already published: {dest.name}')
+    shutil.copy2(source, dest)
+    os.chown(dest, os.stat(MEDIA).st_uid, os.stat(MEDIA).st_gid)
+    dest.chmod(0o644)
+    refresh_playlist()
+    print(dest)
+
+
+if __name__ == '__main__':
+    if len(sys.argv) != 2:
+        sys.stderr.write('Usage: omarchy-kids-publish FILE\n')
+        sys.exit(2)
+    MEDIA.mkdir(parents=True, exist_ok=True)
+    publish(sys.argv[1])

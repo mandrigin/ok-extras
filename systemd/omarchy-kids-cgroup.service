@@ -1,0 +1,13 @@
+[Unit]
+Description=Omarchy Kids cgroup tree
+DefaultDependencies=no
+After=local-fs.target
+Before=omarchy-kids-policy.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/omarchy-kids/setup-cgroups
+
+[Install]
+WantedBy=multi-user.target

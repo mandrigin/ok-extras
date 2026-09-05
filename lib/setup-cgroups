@@ -1,0 +1,8 @@
+#!/bin/bash
+set -uo pipefail
+root=/sys/fs/cgroup/omarchy-kids
+mkdir -p "$root" || exit 0
+for app in digger minecraft stardew_valley vlc; do
+  mkdir -p "$root/$app" || continue
+done
+exit 0

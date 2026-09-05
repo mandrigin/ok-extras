@@ -1,0 +1,32 @@
+#!/usr/bin/python3
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+STAGING = Path('/srv/kids-media/staging')
+
+
+def main():
+    if len(sys.argv) != 2:
+        sys.stderr.write('Usage: omarchy-kids-download URL\n')
+        sys.exit(2)
+    if os.geteuid() == 0:
+        sys.stderr.write('download as the parent user, not root\n')
+        sys.exit(1)
+    STAGING.mkdir(parents=True, exist_ok=True)
+    output = str(STAGING / '%(title)s.%(ext)s')
+    subprocess.check_call([
+        'yt-dlp', '--no-progress', '--newline', '--restrict-filenames',
+        '-f', 'bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b',
+        '--merge-output-format', 'mp4',
+        '-o', output,
+        sys.argv[1],
+    ])
+    newest = max(STAGING.glob('*'), key=lambda path: path.stat().st_mtime)
+    subprocess.check_call(['omarchy-kids-publish', str(newest)])
+    newest.unlink(missing_ok=True)
+
+
+if __name__ == '__main__':
+    main()

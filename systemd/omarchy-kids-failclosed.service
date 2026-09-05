@@ -1,0 +1,7 @@
+[Unit]
+Description=Omarchy Kids fail-closed freeze
+DefaultDependencies=no
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/omarchy-kids/failclosed

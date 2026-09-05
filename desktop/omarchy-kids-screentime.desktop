@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Omarchy Kids Screen Time
+Comment=View allowances and ask a parent for more time
+Exec=/usr/bin/python3 /opt/omarchy-kids-policy/viewer.py
+Icon=preferences-system-time
+Terminal=false
+Categories=Settings;Utility;

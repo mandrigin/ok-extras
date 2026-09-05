@@ -1,0 +1,13 @@
+#!/bin/bash
+set -euo pipefail
+install -d -m 0755 /var/lib/omarchy-kids
+printf '1\n' > /var/lib/omarchy-kids/failclosed
+chmod 644 /var/lib/omarchy-kids/failclosed
+root=/sys/fs/cgroup/omarchy-kids
+if [[ -d $root ]]; then
+  for app in digger minecraft stardew_valley vlc; do
+    if [[ -f $root/$app/cgroup.freeze ]]; then
+      printf '1\n' > "$root/$app/cgroup.freeze" || true
+    fi
+  done
+fi

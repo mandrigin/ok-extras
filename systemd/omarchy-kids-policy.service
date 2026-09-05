@@ -1,0 +1,18 @@
+[Unit]
+Description=Omarchy Kids policy service
+After=local-fs.target omarchy-kids-cgroup.service
+Wants=omarchy-kids-cgroup.service
+OnFailure=omarchy-kids-failclosed.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/bin/omarchy-kids-policy
+WorkingDirectory=/opt/omarchy-kids-policy
+Environment=PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/opt/omarchy-kids-policy
+Restart=always
+RestartSec=2
+TimeoutStopSec=10
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

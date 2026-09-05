@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Stardew Valley
+Comment=Launch Stardew Valley through Steam after purchase and installation
+Exec=/usr/bin/sudo -n /usr/bin/omarchy-kids-launch stardew_valley
+Icon=steam
+Terminal=false
+Categories=Game;

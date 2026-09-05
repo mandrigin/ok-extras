@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Steam
+NoDisplay=true
+Hidden=true
+Exec=/usr/bin/true

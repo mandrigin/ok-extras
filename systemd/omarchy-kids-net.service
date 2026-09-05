@@ -1,0 +1,15 @@
+[Unit]
+Description=Omarchy Kids child network isolation
+After=network-pre.target ufw.service
+Before=network.target
+DefaultDependencies=no
+Requires=local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c '/usr/sbin/nft delete table inet omarchy-kids-net >/dev/null 2>&1 || true; /usr/sbin/nft -f /etc/omarchy-kids/net.nft'
+ExecStop=/bin/bash -c '/usr/sbin/nft delete table inet omarchy-kids-net >/dev/null 2>&1 || true'
+
+[Install]
+WantedBy=multi-user.target
