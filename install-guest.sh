@@ -17,8 +17,9 @@ install -m 0755 "$SRC/lib/"* /usr/lib/omarchy-kids/
 install -m 0644 "$SRC/systemd/"*.service /etc/systemd/system/
 install -m 0644 "$SRC/nft/net.nft" /etc/omarchy-kids/net.nft
 install -m 0644 "$SRC/polkit/com.omarchy.kids.policy" /usr/share/polkit-1/actions/com.omarchy.kids.policy
-install -m 0440 "$SRC/sudoers/omarchy-kids-launch" /etc/sudoers.d/60-omarchy-kids-launch
-visudo -cf /etc/sudoers.d/60-omarchy-kids-launch
+rm -f /etc/sudoers.d/60-omarchy-kids-launch
+install -m 0440 "$SRC/sudoers/zzz-omarchy-kids-launch" /etc/sudoers.d/zzz-omarchy-kids-launch
+visudo -cf /etc/sudoers.d/zzz-omarchy-kids-launch
 
 python3 - <<'PY'
 import json

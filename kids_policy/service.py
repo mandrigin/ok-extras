@@ -204,6 +204,8 @@ class Daemon:
         from kids_policy.grants import extra_seconds
         self.policy.shared.limit = float(self.config['shared_daily_minutes']) * 60 + extra_seconds(grants, 'shared', today)
         self.policy.digger.limit = float(self.config['digger_daily_minutes']) * 60 + extra_seconds(grants, 'digger', today)
+        found, _running = games(self.uid)
+        self.publish(dt.datetime.now(), found, set(), [])
         return {'ok': True, 'created': created, 'grant': stored.to_dict()}
 
     def revoke(self, grant_id):

@@ -43,6 +43,12 @@ def main():
     if pid == 0:
         os.setsid()
         os.chdir(user.pw_dir)
+        devnull = os.open('/dev/null', os.O_RDWR)
+        os.dup2(devnull, 0)
+        os.dup2(devnull, 1)
+        os.dup2(devnull, 2)
+        os.close(devnull)
+        os.initgroups(user.pw_name, user.pw_gid)
         os.setgid(user.pw_gid)
         os.setuid(uid)
         env = {key: os.environ[key] for key in SAFE_ENV if key in os.environ}
