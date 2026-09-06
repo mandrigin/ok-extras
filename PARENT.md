@@ -10,7 +10,7 @@ sudo omarchy-kids-reload
 
 ## Allow-list
 
-`/etc/omarchy-kids/allowlist.json` — anything not listed is hidden and closed for the kid.
+`/etc/omarchy-kids/allowlist.json` — **allow-list, default deny.** Anything not listed is not enabled for the kid (hidden and closed). This is the whole-session rule, not only school hours.
 
 ```json
 {

@@ -1,6 +1,10 @@
 # ok-extras
 
-Extras on top of [peterholko/omarchy-kids](https://github.com/peterholko/omarchy-kids): allow-list, per-category time (games / Digger / videos), bedtime, offline VLC library, network isolation, and the remaining-time HUD.
+Extras on top of [peterholko/omarchy-kids](https://github.com/peterholko/omarchy-kids).
+
+**Principle: allow-list, default deny.** The kid only gets what is in `/etc/omarchy-kids/allowlist.json`. Everything else is not enabled (hidden and closed). This is always on, not only during school hours. Parent (or AI) edits that file; `sudo omarchy-kids-reload` applies it.
+
+Also: per-category time (games / Digger / videos), bedtime, offline VLC library, child network isolation, remaining-time HUD.
 
 This repo does **not** replace Kids core, School, DNS, or Number Grove. Install `omarchy-kids` first, then this overlay.
 
