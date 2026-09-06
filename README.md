@@ -16,7 +16,7 @@ This repo does **not** replace Kids core, School, DNS, or Number Grove. Install 
 ## What this adds
 
 - `/etc/omarchy-kids/allowlist.json` — anything not listed is hidden and closed
-- Separate budgets: shared games, Digger, VLC
+- Separate budgets: shared games, Digger, Micropolis (30 minutes), VLC
 - One free “1 more minute”, then parent 15/30/60
 - Offline Kids Videos (`yt-dlp` as parent → VLC `--no-network`)
 - Child UID nftables block; parent keeps internet
@@ -36,8 +36,29 @@ Do not blindly rerun install on a live machine if you already have parent-edited
 ## Upgrade
 
 ```sh
-git pull --ff-only
-sudo omarchy-kids-reload
+sudo bash update.sh
 ```
 
-Replace code under `/opt/omarchy-kids-policy` and `/usr/bin/omarchy-kids-*`. Keep `/etc/omarchy-kids/*.json` and `/var/lib/omarchy-kids/state.json`.
+The updater fetches a clean copy of this repo and runs `upgrade.sh`. It preserves
+machine-specific edits in your checkout, existing budgets, schedules and daily
+usage. Backups go to `/var/lib/omarchy-kids/upgrade-backup-*`.
+
+This upgrade installs Micropolis, enables its menu entry and gives it an independent
+30-minute daily budget. It builds a pinned Digger release with a resizable SDL
+window. Digger opens at four times its native pixel dimensions, fitted to the
+monitor and floating. Existing running games retain their executable and position.
+
+The bar labels the native overall budget **Desktop** and shows separate app
+allowances. Click an app allowance for parent +15/+30/+60 controls. Successful
+extensions close the controls and return focus to the game; canceled authentication
+leaves the controls open. When an app runs out of time, its frozen window appears
+as a darkened grayscale preview with extension buttons. A denied launch opens the
+same controls, using the last captured preview when available.
+
+The persistent user UI needs Tk and Pillow, installed by the upgrade. The root
+policy daemon remains responsible for enforcing limits. Desktop time is a separate
+native limit: extending an app does not extend overall desktop time.
+
+Tests: `python3 -m unittest discover -s tests -v`. For real widget tests, install
+Tk, Pillow and Xvfb, then run
+`OK_EXTRAS_UI_TEST=1 xvfb-run -a python3 -m unittest discover -s tests -v`.

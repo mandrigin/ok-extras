@@ -21,7 +21,7 @@ SAFE_ENV = (
 
 def main():
     if len(sys.argv) != 2:
-        sys.stderr.write('Usage: omarchy-kids-launch <digger|minecraft|stardew_valley|vlc>\n')
+        sys.stderr.write('Usage: omarchy-kids-launch <digger|micropolis|minecraft|stardew_valley|vlc>\n')
         sys.exit(2)
     if os.geteuid() != 0:
         sys.stderr.write('launch helper must run as root via sudo\n')

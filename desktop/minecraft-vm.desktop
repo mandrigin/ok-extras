@@ -2,7 +2,7 @@
 Type=Application
 Name=Minecraft
 Comment=Minecraft Java via Prism Launcher, with the VM graphics fallback
-Exec=/usr/bin/sudo -n /usr/bin/omarchy-kids-launch minecraft
+Exec=/usr/bin/omarchy-kids-open minecraft
 Icon=org.prismlauncher.PrismLauncher
 Terminal=false
 Categories=Game;

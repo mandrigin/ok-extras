@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=Kids Videos
+Name=VLC
 Comment=Local parent-published videos
-Exec=/usr/bin/sudo -n /usr/bin/omarchy-kids-launch vlc
+Exec=/usr/bin/omarchy-kids-open vlc
 Icon=video-x-generic
 Terminal=false
 Categories=AudioVideo;Player;

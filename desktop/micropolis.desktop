@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Micropolis
+Comment=Build your own city
+Exec=/usr/bin/omarchy-kids-open micropolis
+Icon=applications-games
+Terminal=false
+Categories=Game;Simulation;

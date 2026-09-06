@@ -13,7 +13,8 @@ from kids_policy.cgroup import CgroupTree, write_failclosed
 from kids_policy.classify import SCHEDULED
 from kids_policy.grants import Grant, revoke_grant, upsert_grant
 from kids_policy.migrate import default_config, migrate_state
-from kids_policy.allowlist import is_allowed_window
+from kids_policy.allowlist import is_allowed_window, enabled_ids
+from kids_policy.presentation import APPS
 from kids_policy.configver import load_or_migrate, migrate_allowlist, migrate_policy
 from kids_policy.paths import ALLOWLIST, CGROUP_ROOT, CONFIG, FAILCLOSED, LEGACY_CONFIG, SOCKET, STATE, USAGE
 from kids_policy.scan import games, identity
@@ -115,6 +116,9 @@ class Daemon:
 
     def publish(self, now, found, blocked, reasons):
         snap = self.policy.snapshot(now)
+        snap['enabled_apps'] = [app for app in APPS if app in enabled_ids(self.config)]
+        snap['app_status'] = {app: self.app_permission(app, now) for app in APPS}
+        snap['play_windows'] = self.config['play_windows']
         snap.update({
             'running': {app: len(pids) for app, pids in found.items()},
             'blocked': len(blocked),
@@ -196,15 +200,30 @@ class Daemon:
             events.append(f'closed {title or class_name}')
         return events
 
+    def app_permission(self, app, now):
+        if app not in enabled_ids(self.config):
+            return {'blocked': True, 'reason': 'This app is not on the parent allow-list', 'code': 'not_allowed'}
+        if app not in APPS:
+            return {'blocked': True, 'reason': 'Unknown app', 'code': 'unknown_app'}
+        # Read the current allowance without changing the accounting clock.
+        label, budget, _field = APPS[app]
+        allowed, reason = self.policy.play_allowed(now)
+        if not allowed:
+            return {'blocked': True, 'reason': reason or 'Outside allowed hours', 'code': 'schedule'}
+        if self.policy.remaining(budget) <= 0:
+            return {'blocked': True, 'reason': f'{label} daily limit reached', 'code': 'limit'}
+        return {'blocked': False, 'reason': '', 'code': ''}
+
     def may_launch(self, app):
         spec = self.config.get('apps', {}).get(app)
         if not spec:
             return {'ok': False, 'error': 'unknown app'}
         now = dt.datetime.now()
         _found, running = games(self.uid)
-        blocked, reasons = self.policy.tick(now, time.monotonic(), running)
-        if app in blocked:
-            return {'ok': False, 'error': '; '.join(reasons) or 'not allowed now'}
+        self.policy.tick(now, time.monotonic(), running)
+        permission = self.app_permission(app, now)
+        if permission['blocked']:
+            return {'ok': False, 'error': permission['reason'], 'code': permission['code']}
         argv = list(spec['argv'])
         if not argv or not Path(argv[0]).exists():
             return {'ok': False, 'error': f'{app} is not installed'}
@@ -222,6 +241,7 @@ class Daemon:
         grants = self.policy.grant_objects()
         self.policy.shared.limit = float(self.config['shared_daily_minutes']) * 60 + extra_seconds(grants, 'shared', today)
         self.policy.digger.limit = float(self.config['digger_daily_minutes']) * 60 + extra_seconds(grants, 'digger', today)
+        self.policy.micropolis.limit = float(self.config.get('micropolis_daily_minutes', 30)) * 60 + extra_seconds(grants, 'micropolis', today)
         self.policy.vlc.limit = float(self.config.get('vlc_daily_minutes', 60)) * 60 + extra_seconds(grants, 'vlc', today)
 
     def grant(self, payload):
@@ -234,7 +254,9 @@ class Daemon:
         self.publish(dt.datetime.now(), found, set(), [])
         return {'ok': True, 'created': created, 'grant': stored.to_dict()}
 
-    def free_minute(self):
+    def free_minute(self, budget='all'):
+        if budget not in {'all', 'shared', 'digger', 'vlc', 'micropolis'}:
+            return {'ok': False, 'error': 'unknown budget'}
         if self.policy.state.get('free_minute_used'):
             return {'ok': False, 'error': 'already used today'}
         today = self.policy.state['date']
@@ -243,7 +265,7 @@ class Daemon:
             'id': f'free-minute-{today}',
             'kind': 'minutes',
             'minutes': 1,
-            'budget': 'all',
+            'budget': budget,
             'date': today,
             'child_uid': self.uid,
             'approver': 'free-minute',
@@ -267,7 +289,7 @@ class Daemon:
         if op == 'grant':
             return self.grant(request['grant'])
         if op == 'free_minute':
-            return self.free_minute()
+            return self.free_minute(request.get('budget', 'all'))
         if op == 'revoke':
             return self.revoke(str(request.get('id', '')))
         return {'ok': False, 'error': 'unknown op'}

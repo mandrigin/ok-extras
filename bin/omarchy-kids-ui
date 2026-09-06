@@ -1,0 +1,12 @@
+#!/usr/bin/python3
+import argparse
+import sys
+sys.path.insert(0, '/opt/omarchy-kids-policy')
+from kids_policy.presentation import APPS
+from kids_policy.ui_client import send
+
+parser = argparse.ArgumentParser(description='Show app allowances and parent controls')
+parser.add_argument('--app', choices=list(APPS))
+parser.add_argument('--quit', action='store_true')
+args = parser.parse_args()
+sys.exit(0 if send({'op': 'quit' if args.quit else 'dashboard', 'app': args.app}, start=not args.quit) else 1)

@@ -9,6 +9,7 @@ def empty_day(today):
         'shared_used_seconds': 0.0,
         'digger_used_seconds': 0.0,
         'vlc_used_seconds': 0.0,
+        'micropolis_used_seconds': 0.0,
         'apps': {},
         'grants': [],
         'failclosed': False,
@@ -65,6 +66,8 @@ class Policy:
         vlc_limit = float(config.get('vlc_daily_minutes', 60)) * 60 + extra_seconds(self.grant_objects(), 'vlc', today)
         self.shared = Budget(self.state.get('shared_used_seconds', 0), shared_limit, mono)
         self.digger = Budget(self.state.get('digger_used_seconds', 0), digger_limit, mono)
+        micropolis_limit = float(config.get('micropolis_daily_minutes', 30)) * 60 + extra_seconds(self.grant_objects(), 'micropolis', today)
+        self.micropolis = Budget(self.state.get('micropolis_used_seconds', 0), micropolis_limit, mono)
         self.vlc = Budget(self.state.get('vlc_used_seconds', 0), vlc_limit, mono)
         self.apps = dict(self.state.get('apps', {}))
 
@@ -84,16 +87,17 @@ class Policy:
         self.shared.used = max(self.shared.used, base_shared)
         self.digger.used = max(self.digger.used, base_digger)
         self.vlc.used = max(self.vlc.used, base_vlc)
+        self.micropolis.used = max(self.micropolis.used, float(self.config.get('micropolis_daily_minutes', 30)) * 60)
         return True
 
     def play_allowed(self, now):
         self.burn_unused_at_bedtime(now)
         if in_play_window(now, self.config['play_windows']):
-            if self.remaining('shared') > 0 or self.remaining('digger') > 0 or self.remaining('vlc') > 0:
+            if any(self.remaining(name) > 0 for name in ('shared', 'digger', 'vlc', 'micropolis')):
                 return True, None
             return False, 'Time is up'
         if after_cutoff(now, self.config['play_windows']):
-            if self.remaining('shared') > 0 or self.remaining('digger') > 0 or self.remaining('vlc') > 0:
+            if any(self.remaining(name) > 0 for name in ('shared', 'digger', 'vlc', 'micropolis')):
                 return True, None
             return False, 'Bedtime'
         return False, 'Too early'
@@ -105,12 +109,15 @@ class Policy:
             self.shared.used = 0
             self.digger.used = 0
             self.vlc.used = 0
+            self.micropolis.used = 0
+            self.micropolis.previous = set()
             self.shared.previous = set()
             self.digger.previous = set()
             self.vlc.previous = set()
             today = self.state['date']
             self.shared.limit = float(self.config['shared_daily_minutes']) * 60 + extra_seconds(self.grant_objects(), 'shared', today)
             self.digger.limit = float(self.config['digger_daily_minutes']) * 60 + extra_seconds(self.grant_objects(), 'digger', today)
+            self.micropolis.limit = float(self.config.get('micropolis_daily_minutes', 30)) * 60 + extra_seconds(self.grant_objects(), 'micropolis', today)
             self.vlc.limit = float(self.config.get('vlc_daily_minutes', 60)) * 60 + extra_seconds(self.grant_objects(), 'vlc', today)
             self.state['warnings'] = {}
         evening = self.burn_unused_at_bedtime(now)
@@ -121,7 +128,8 @@ class Policy:
         _charged, shared_apps, _shared_out = self.shared.tick(mono, shared_running)
         _charged, digger_apps, _digger_out = self.digger.tick(mono, digger_running)
         _charged, vlc_apps, _vlc_out = self.vlc.tick(mono, vlc_running)
-        for app, value in {**shared_apps, **digger_apps, **vlc_apps}.items():
+        _charged, micropolis_apps, _out = self.micropolis.tick(mono, set(running) & {'micropolis'})
+        for app, value in {**shared_apps, **digger_apps, **vlc_apps, **micropolis_apps}.items():
             self.apps[app] = self.apps.get(app, 0) + value
         blocked = set()
         reasons = []
@@ -134,15 +142,18 @@ class Policy:
         if self.remaining('vlc') <= 0:
             blocked.add('vlc')
             reasons.append('Videos daily limit reached')
+        if self.remaining('micropolis') <= 0:
+            blocked.add('micropolis')
+            reasons.append('Micropolis daily limit reached')
         if early:
-            blocked.update({'digger', 'minecraft', 'stardew_valley', 'vlc'})
+            blocked.update({'digger', 'minecraft', 'stardew_valley', 'vlc', 'micropolis'})
             reasons.append('Too early')
-        if evening and self.remaining('shared') <= 0 and self.remaining('digger') <= 0 and self.remaining('vlc') <= 0:
+        if evening and all(self.remaining(name) <= 0 for name in ('shared', 'digger', 'vlc', 'micropolis')):
             reasons.append('Bedtime')
         return blocked, reasons
 
     def remaining(self, name):
-        budgets = {'shared': self.shared, 'digger': self.digger, 'vlc': self.vlc}
+        budgets = {'shared': self.shared, 'digger': self.digger, 'vlc': self.vlc, 'micropolis': self.micropolis}
         budget = budgets[name]
         return max(0.0, budget.limit - budget.used)
 
@@ -155,12 +166,15 @@ class Policy:
             'date': self.state['date'],
             'apps': dict(self.apps),
             'categories': {
-                'games': self.shared.used + self.digger.used,
+                'games': self.shared.used + self.digger.used + self.micropolis.used,
                 'videos': self.vlc.used,
             },
             'shared_used_seconds': self.shared.used,
             'digger_used_seconds': self.digger.used,
             'vlc_used_seconds': self.vlc.used,
+            'micropolis_used_seconds': self.micropolis.used,
+            'micropolis_daily_limit_minutes': self.micropolis.limit / 60,
+            'micropolis_remaining_seconds': self.remaining('micropolis'),
             'daily_limit_minutes': self.shared.limit / 60,
             'digger_daily_limit_minutes': self.digger.limit / 60,
             'vlc_daily_limit_minutes': self.vlc.limit / 60,
@@ -184,5 +198,6 @@ class Policy:
         self.state['shared_used_seconds'] = self.shared.used
         self.state['digger_used_seconds'] = self.digger.used
         self.state['vlc_used_seconds'] = self.vlc.used
+        self.state['micropolis_used_seconds'] = self.micropolis.used
         self.state['apps'] = dict(self.apps)
         return self.state

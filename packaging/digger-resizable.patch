@@ -1,0 +1,5 @@
+--- a/sdl_vid.c
++++ b/sdl_vid.c
+@@ -501 +501 @@
+-	uint32_t window_flags = 0;
++	uint32_t window_flags = SDL_WINDOW_RESIZABLE;

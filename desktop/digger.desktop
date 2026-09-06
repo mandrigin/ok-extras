@@ -2,7 +2,7 @@
 Type=Application
 Name=Digger
 Comment=Classic arcade game
-Exec=/usr/bin/sudo -n /usr/bin/omarchy-kids-launch digger
+Exec=/usr/bin/omarchy-kids-open digger
 Icon=input-gaming
 Terminal=false
 Categories=Game;ArcadeGame;

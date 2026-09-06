@@ -15,7 +15,7 @@ from kids_policy.store import read_json
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--minutes', type=float)
-    parser.add_argument('--budget', choices=('shared', 'digger', 'vlc', 'all'), default='all')
+    parser.add_argument('--budget', choices=('shared', 'digger', 'vlc', 'micropolis', 'all'), default='all')
     parser.add_argument('--until')
     parser.add_argument('--id')
     parser.add_argument('--revoke')
@@ -28,7 +28,7 @@ def main():
         request({'op': 'revoke', 'id': args.revoke})
         return
     if args.free_minute:
-        reply = request({'op': 'free_minute'})
+        reply = request({'op': 'free_minute', 'budget': args.budget})
         print(reply.get('grant', {}).get('id', 'ok'))
         return
     config = default_config()

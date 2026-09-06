@@ -4,6 +4,7 @@ DEFAULT_ALLOWLIST = ('digger', 'minecraft', 'stardew_valley', 'vlc', 'screentime
 
 ALLOWED_DESKTOPS = {
     'digger': 'digger.desktop',
+    'micropolis': 'micropolis.desktop',
     'minecraft': 'minecraft-vm.desktop',
     'stardew_valley': 'stardew-valley.desktop',
     'vlc': 'kids-videos.desktop',
@@ -12,6 +13,7 @@ ALLOWED_DESKTOPS = {
 
 ALLOWED_WINDOW = {
     'digger': ('digger', 'd i g g e r'),
+    'micropolis': ('micropolis',),
     'minecraft': ('minecraft', 'prismlauncher', 'org.prismlauncher'),
     'stardew_valley': ('stardew', 'steam_app_413150'),
     'vlc': ('vlc', 'kids videos'),
@@ -26,6 +28,7 @@ SESSION_MARKERS = (
     'xwayland', 'hyprctl', 'grim', 'hyprland-dialog', 'hyprland-guiutils',
     'omarchy-notification', 'omarchy-kids-hud', 'omarchy-kids-block',
     'omarchy-kids-policy',
+    'hyprpolkitagent', 'polkit',
 )
 
 

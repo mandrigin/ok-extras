@@ -1,0 +1,13 @@
+[Unit]
+Description=Kids app allowances and blocked-game controls
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/omarchy-kids-policy/hud.py
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=graphical-session.target
