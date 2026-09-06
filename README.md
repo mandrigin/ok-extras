@@ -28,7 +28,7 @@ Parent/AI edits JSON, then `sudo omarchy-kids-reload`. See [PARENT.md](PARENT.md
 
 ```sh
 sudo bash install-guest.sh /path/to/ok-extras
-sudo omarchy-kids-reload
+sudo bash upgrade.sh
 ```
 
 Do not blindly rerun install on a live machine if you already have parent-edited `policy.json` / `allowlist.json`; current install migrates those instead of clobbering them.

@@ -19,7 +19,7 @@ PY
 )
 [[ -n ${CHILD:-} ]] || exit 1
 cd "$SRC"
-omarchy-pkg-add tk python-pillow gcc make patch pkgconf sdl2-compat zlib libx11
+omarchy-pkg-add tk python-pillow gcc make patch pkgconf sdl2-compat zlib libx11 vlc-plugin-ffmpeg
 command -v java >/dev/null || omarchy-pkg-add jre21-openjdk
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
 python3 -c 'import tkinter; from PIL import Image, ImageTk'
