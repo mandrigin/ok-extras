@@ -38,6 +38,7 @@ def default_config(uid=1000):
         'shared_daily_minutes': 60,
         'digger_daily_minutes': 10,
         'micropolis_daily_minutes': 30,
+        'retro_daily_minutes': 30,
         'play_windows': {
             'weekday': {'start': '09:00', 'end': '21:00'},
             'weekend': {'start': '08:00', 'end': '21:00'},
@@ -51,6 +52,10 @@ def default_config(uid=1000):
             'tools': ['screentime'],
         },
         'apps': {
+            'retro': {
+                'label': 'Retro games', 'budget': 'retro', 'schedule': True,
+                'argv': ['/usr/bin/retroarch', '--menu', '--config', '/etc/omarchy-kids/retroarch.cfg'],
+            },
             'micropolis': {
                 'label': 'Micropolis', 'budget': 'micropolis', 'schedule': True,
                 'argv': ['/usr/local/bin/micropolis'],

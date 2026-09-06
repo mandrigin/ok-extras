@@ -242,6 +242,7 @@ class Daemon:
         self.policy.shared.limit = float(self.config['shared_daily_minutes']) * 60 + extra_seconds(grants, 'shared', today)
         self.policy.digger.limit = float(self.config['digger_daily_minutes']) * 60 + extra_seconds(grants, 'digger', today)
         self.policy.micropolis.limit = float(self.config.get('micropolis_daily_minutes', 30)) * 60 + extra_seconds(grants, 'micropolis', today)
+        self.policy.retro.limit = float(self.config.get('retro_daily_minutes', 30)) * 60 + extra_seconds(grants, 'retro', today)
         self.policy.vlc.limit = float(self.config.get('vlc_daily_minutes', 60)) * 60 + extra_seconds(grants, 'vlc', today)
 
     def grant(self, payload):
@@ -255,7 +256,7 @@ class Daemon:
         return {'ok': True, 'created': created, 'grant': stored.to_dict()}
 
     def free_minute(self, budget='all'):
-        if budget not in {'all', 'shared', 'digger', 'vlc', 'micropolis'}:
+        if budget not in {'all', 'shared', 'digger', 'vlc', 'micropolis', 'retro'}:
             return {'ok': False, 'error': 'unknown budget'}
         if self.policy.state.get('free_minute_used'):
             return {'ok': False, 'error': 'already used today'}

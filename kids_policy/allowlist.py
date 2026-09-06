@@ -5,6 +5,7 @@ DEFAULT_ALLOWLIST = ('digger', 'minecraft', 'stardew_valley', 'vlc', 'screentime
 ALLOWED_DESKTOPS = {
     'digger': 'digger.desktop',
     'micropolis': 'micropolis.desktop',
+    'retro': 'kids-retro.desktop',
     'minecraft': 'minecraft-vm.desktop',
     'stardew_valley': 'stardew-valley.desktop',
     'vlc': 'kids-videos.desktop',
@@ -14,6 +15,7 @@ ALLOWED_DESKTOPS = {
 ALLOWED_WINDOW = {
     'digger': ('digger', 'd i g g e r'),
     'micropolis': ('micropolis',),
+    'retro': ('retroarch',),
     'minecraft': ('minecraft', 'prismlauncher', 'org.prismlauncher'),
     'stardew_valley': ('stardew', 'steam_app_413150'),
     'vlc': ('vlc', 'kids videos'),

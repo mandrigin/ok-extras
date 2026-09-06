@@ -19,7 +19,7 @@ PY
 )
 [[ -n ${CHILD:-} ]] || exit 1
 cd "$SRC"
-omarchy-pkg-add tk python-pillow gcc make patch pkgconf sdl2-compat zlib libx11 vlc-plugin-ffmpeg
+omarchy-pkg-add tk python-pillow gcc make patch pkgconf sdl2-compat zlib libx11 vlc-plugin-ffmpeg retroarch libretro-genesis-plus-gx libretro-nestopia retroarch-assets-ozone
 command -v java >/dev/null || omarchy-pkg-add jre21-openjdk
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
 python3 -c 'import tkinter; from PIL import Image, ImageTk'
@@ -32,6 +32,7 @@ cp -a /etc/sudoers.d/zzz-omarchy-kids-launch "$BACKUP/sudoers"
 [[ ! -f $CHILD_HOME/.config/omarchy/shell.json ]] || cp -a "$CHILD_HOME/.config/omarchy/shell.json" "$BACKUP/shell.json"
 echo "Backup: $BACKUP"
 bash packaging/install_games.sh
+python3 packaging/configure_retro.py "$CHILD"
 
 as_child() {
   runuser -u "$CHILD" -- env OMARCHY_PATH="$OMARCHY_PATH" PATH="$PATH" \
@@ -57,7 +58,7 @@ import sys
 child=sys.argv[1]
 print(f'{child} ALL=(root) NOPASSWD: /usr/bin/omarchy-kids-launch')
 print(f'{child} ALL=(root) NOPASSWD: /usr/bin/omarchy-kids-grant --free-minute')
-for budget in ('digger','shared','vlc','micropolis'):
+for budget in ('digger','shared','vlc','micropolis','retro'):
     print(f'{child} ALL=(root) NOPASSWD: /usr/bin/omarchy-kids-grant --free-minute --budget {budget}')
 print('Defaults!/usr/bin/omarchy-kids-launch env_keep += "DISPLAY WAYLAND_DISPLAY XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS HYPRLAND_INSTANCE_SIGNATURE XDG_SESSION_TYPE XDG_CURRENT_DESKTOP LIBGL_ALWAYS_SOFTWARE"')
 print('Defaults:parent !rootpw')
@@ -66,7 +67,7 @@ visudo -cf "$SUDO_STAGE"
 install -m 0440 "$SUDO_STAGE" /etc/sudoers.d/zzz-omarchy-kids-launch
 
 install -d -o "$CHILD_UID" -g "$CHILD_GID" "$CHILD_HOME/.local/share/applications" "$CHILD_HOME/.config/systemd/user"
-for name in digger micropolis kids-videos minecraft-vm stardew-valley omarchy-kids-screentime; do
+for name in digger micropolis kids-retro kids-videos minecraft-vm stardew-valley omarchy-kids-screentime; do
   install -m 0644 -o "$CHILD_UID" -g "$CHILD_GID" "desktop/$name.desktop" "$CHILD_HOME/.local/share/applications/$name.desktop"
 done
 install -d -m 0755 /usr/local/share/applications

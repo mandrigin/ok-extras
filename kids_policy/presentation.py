@@ -4,6 +4,7 @@ import datetime as dt
 APPS = {
     'digger': ('Digger', 'digger', 'digger_remaining_seconds'),
     'micropolis': ('Micropolis', 'micropolis', 'micropolis_remaining_seconds'),
+    'retro': ('Retro games', 'retro', 'retro_remaining_seconds'),
     'minecraft': ('Minecraft', 'shared', 'remaining_seconds'),
     'stardew_valley': ('Stardew Valley', 'shared', 'remaining_seconds'),
     'vlc': ('Videos', 'vlc', 'vlc_remaining_seconds'),
@@ -47,6 +48,7 @@ def window_app(window):
     for app, markers in (
         ('digger', ('digger', 'd i g g e r')),
         ('micropolis', ('micropolis',)),
+        ('retro', ('retroarch',)),
         ('minecraft', ('minecraft', 'prism')),
         ('stardew_valley', ('stardew', 'steam_app_413150')),
         ('vlc', ('vlc', 'kids videos')),

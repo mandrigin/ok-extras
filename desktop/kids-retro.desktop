@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Retro Games
+Comment=Sega Mega Drive and Nintendo NES games
+Exec=/usr/bin/omarchy-kids-open retro
+Icon=retroarch
+Terminal=false
+Categories=Game;Emulator;

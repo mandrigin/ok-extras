@@ -14,6 +14,7 @@ BarWidget {
   readonly property var definitions: [
     { app: "digger", title: "Digger", key: "digger_remaining_seconds" },
     { app: "micropolis", title: "Micropolis", key: "micropolis_remaining_seconds" },
+    { app: "retro", title: "Retro", key: "retro_remaining_seconds" },
     { app: "minecraft", title: "Games", key: "remaining_seconds" },
     { app: "stardew_valley", title: "Games", key: "remaining_seconds" },
     { app: "vlc", title: "Videos", key: "vlc_remaining_seconds" }

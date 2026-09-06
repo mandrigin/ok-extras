@@ -1,11 +1,12 @@
 from pathlib import Path
 
 SHARED_GAMES = ('minecraft', 'stardew_valley')
-GAMES = ('digger', 'minecraft', 'stardew_valley', 'micropolis')
-SCHEDULED = ('digger', 'minecraft', 'stardew_valley', 'vlc', 'micropolis')
+GAMES = ('digger', 'minecraft', 'stardew_valley', 'micropolis', 'retro')
+SCHEDULED = ('digger', 'minecraft', 'stardew_valley', 'vlc', 'micropolis', 'retro')
 BUDGET_FOR = {
     'digger': 'digger',
     'micropolis': 'micropolis',
+    'retro': 'retro',
     'minecraft': 'shared',
     'stardew_valley': 'shared',
     'vlc': None,
@@ -17,6 +18,8 @@ def classify(name, executable='', command='', cwd=''):
     executable = Path(executable).name.lower()
     command = command.lower()
     cwd = cwd.lower()
+    if name == 'retroarch' or executable == 'retroarch':
+        return 'retro'
     if name == 'micropolis' or executable == 'micropolis':
         return 'micropolis'
     if name == 'digger' or executable == 'digger':

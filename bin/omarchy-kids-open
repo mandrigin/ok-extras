@@ -6,5 +6,5 @@ from kids_policy.presentation import APPS
 from kids_policy.ui_client import send
 
 if len(sys.argv) != 2 or sys.argv[1] not in APPS:
-    sys.exit('Usage: omarchy-kids-open <digger|micropolis|minecraft|stardew_valley|vlc>')
+    sys.exit('Usage: omarchy-kids-open <digger|micropolis|retro|minecraft|stardew_valley|vlc>')
 sys.exit(0 if send({'op': 'launch', 'app': sys.argv[1]}) else 1)
