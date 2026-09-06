@@ -41,6 +41,12 @@ def fresh(state, now=None):
         return False
 
 
+def needs_schedule_approval(state, app):
+    desktop = state.get('desktop', {})
+    return (desktop.get('phase') == 'bedtime' or bool(desktop.get('extension_until'))
+            or (app in APPS and app_view(state, app).get('code') == 'schedule'))
+
+
 def window_app(window):
     blob = f"{window.get('class', '')} {window.get('title', '')}".lower()
     if 'omarchy' in blob or 'kids-' in blob:

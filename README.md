@@ -39,6 +39,20 @@ Do not blindly rerun install on a live machine if you already have parent-edited
 sudo bash update.sh
 ```
 
+App controls show both the selected game's time and Desktop time. A parent's
+ordinary +15/+30/+60 grant adds game time and tops up Desktop time only when
+needed to cover that interval. It never changes allowed hours. Outside allowed
+hours, the separate **Allow 15/30/60 min past bedtime** action requires parent
+authentication and temporarily permits both the game and desktop. The exception
+expires automatically, including after a daemon restart; weekly schedules are
+unchanged. The free minute cannot override desktop limits or bedtime.
+
+The upgrade installs a small compatibility hook in Omarchy's native screen-time
+service, backed up beside the original file and in the upgrade backup. Reapply
+this upgrade after an Omarchy update that replaces that service. Unsupported
+native layouts are rejected before installation, and missing desktop status
+keeps games blocked rather than reporting a successful extension.
+
 The updater fetches a clean copy of this repo and runs `upgrade.sh`. It preserves
 machine-specific edits in your checkout, existing budgets, schedules and daily
 usage. Backups go to `/var/lib/omarchy-kids/upgrade-backup-*`.
@@ -57,7 +71,7 @@ same controls, using the last captured preview when available.
 
 The persistent user UI needs Tk and Pillow, installed by the upgrade. The root
 policy daemon remains responsible for enforcing limits. Desktop time is a separate
-native limit: extending an app does not extend overall desktop time.
+native limit: parent grants from the app controls now coordinate both limits.
 
 Tests: `python3 -m unittest discover -s tests -v`. For real widget tests, install
 Tk, Pillow and Xvfb, then run

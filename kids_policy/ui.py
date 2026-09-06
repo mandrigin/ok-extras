@@ -14,7 +14,7 @@ import uuid
 
 from PIL import Image, ImageEnhance, ImageOps, ImageTk
 from kids_policy.paths import ALLOWLIST, CONFIG, USAGE
-from kids_policy.presentation import APPS, app_view, enabled_apps, fmt, fresh, window_app
+from kids_policy.presentation import APPS, app_view, enabled_apps, fmt, fresh, window_app, needs_schedule_approval
 from kids_policy.store import read_json
 from kids_policy.ui_client import runtime
 
@@ -52,6 +52,7 @@ class DesktopUI:
         # Existing games keep their position when the UI is upgraded mid-session.
         self.pending, self.sized = set(), {w['address']: None for w in clients()}
         self.busy = False
+        self.grant_mode = False
         self.state = {}
         self.dashboard, self.overlay, self.overlay_app = None, None, None
         self.rows, self.hidden = {}, []
@@ -89,7 +90,7 @@ class DesktopUI:
                 self.dismiss()
         self.background(['sudo', '-n', '/usr/bin/omarchy-kids-launch', app], done)
 
-    def grant(self, app, minutes=None):
+    def grant(self, app, minutes=None, after_bedtime=False):
         if self.busy:
             return
         budget = APPS[app][1]
@@ -97,7 +98,9 @@ class DesktopUI:
             command = ['sudo', '-n', '/usr/bin/omarchy-kids-grant', '--free-minute', '--budget', budget]
         else:
             command = ['pkexec', '/usr/bin/omarchy-kids-grant', '--budget', budget,
-                       '--minutes', str(minutes), '--id', str(uuid.uuid4())]
+                       '--minutes', str(minutes), '--id', str(uuid.uuid4()), '--with-desktop']
+            if after_bedtime:
+                command.append('--after-bedtime')
         self.busy = True
         self.update_buttons()
 
@@ -145,18 +148,24 @@ class DesktopUI:
             self.dashboard_message.configure(text=message[:300])
 
     def grant_buttons(self, parent, app):
+        desktop = self.state.get('desktop', {})
+        outside = needs_schedule_approval(self.state, app)
+        self.grant_mode = outside
         frame = ttk.Frame(parent)
         frame.pack(pady=8)
-        if self.state.get('free_minute_available', False):
+        if self.state.get('free_minute_available', False) and not outside and desktop.get('remaining_seconds', 60) > 0:
             button = ttk.Button(frame, text='1 more minute', command=lambda: self.grant(app))
             button.pack(side='left', padx=4)
             self.buttons.append(button)
-        ttk.Label(parent, text='Ask a parent for extra time:').pack(pady=(8, 0))
+        text = ('Outside allowed hours. Parent approval overrides bedtime for this interval only.' if outside
+                else 'Ask a parent: adds app time and ensures enough desktop time.')
+        ttk.Label(parent, text=text, wraplength=530).pack(pady=(8, 0))
         frame = ttk.Frame(parent)
         frame.pack(pady=8)
         for minutes in (self.state.get('extra_minute_tiers') or [15, 30, 60])[:3]:
-            button = ttk.Button(frame, text=f'+{minutes} min', command=lambda m=minutes: self.grant(app, m))
-            button.pack(side='left', padx=4)
+            button = ttk.Button(frame, text=f'Allow {minutes} min past bedtime' if outside else f'+{minutes} min',
+                                command=lambda m=minutes: self.grant(app, m, after_bedtime=outside))
+            button.pack(side='top' if outside else 'left', padx=4, pady=2)
             self.buttons.append(button)
         self.update_buttons()
 
@@ -167,7 +176,7 @@ class DesktopUI:
         self.dashboard = window = tk.Toplevel(self.root)
         self.dashboard_free = self.state.get('free_minute_available')
         window.title('Omarchy Kids · App allowances')
-        window.geometry('640x650')
+        window.geometry('760x850')
         window.protocol('WM_DELETE_WINDOW', self.close_dashboard)
         body = ttk.Frame(window, padding=24)
         body.pack(fill='both', expand=True)
@@ -205,7 +214,7 @@ class DesktopUI:
                 if candidate.get('title') == 'Omarchy Kids · App allowances':
                     if not candidate.get('floating'):
                         dispatch('float', candidate, action='toggle')
-                    dispatch('resize', candidate, x=760, y=680)
+                    dispatch('resize', candidate, x=760, y=850)
                     dispatch('center', candidate)
         window.after(150, position)
 
@@ -216,10 +225,13 @@ class DesktopUI:
     def update_dashboard(self):
         if self.dashboard is None:
             return
-        desktop = read_json(Path('/var/lib/omarchy/parent') / os.environ.get('USER', '') / 'time/status.json', {}) or {}
+        desktop = self.state.get('desktop', {})
         left = desktop.get('remaining_seconds')
-        self.desktop_label.configure(text=(f'Desktop: {fmt(left)} remaining. ' if left is not None else '') +
-                                     'App allowances are separate; the first limit reached stops play.')
+        note = desktop.get('error') or ('Blocked: ' + desktop.get('blocked_label', 'Bedtime')
+                                       if desktop.get('phase') == 'bedtime' else '')
+        if desktop.get('extension_until'):
+            note = 'Parent approved play until ' + time.strftime('%H:%M', time.localtime(desktop['extension_until']))
+        self.desktop_label.configure(text=(f'Desktop: {fmt(left)} remaining. ' if left is not None else '') + note)
         for app, row in self.rows.items():
             view = app_view(self.state, app)
             row.configure(text=f"{view['label']}: {fmt(view['remaining'])}" + (' · blocked' if view['blocked'] else ''))
@@ -258,7 +270,7 @@ class DesktopUI:
         source = matching[0] if matching else None
         path = self.capture(app, source) if source else self.cache / (app + '.png')
         width, height = source['size'] if source else (900, 650)
-        width, height = max(600, width), max(450, height)
+        width, height = max(600, width), max(600, height)
         x, y = source['at'] if source else (100, 100)
         self.overlay = window = tk.Toplevel(self.root)
         window.title('omarchy-kids-block')
@@ -371,7 +383,9 @@ class DesktopUI:
                     self.jobs.remove((future, callback))
                     callback(future.result())
             self.state = read_json(USAGE, {}) or {}
-            if self.dashboard and not self.busy and self.dashboard_free != self.state.get('free_minute_available'):
+            outside = needs_schedule_approval(self.state, self.selected)
+            if self.dashboard and not self.busy and (self.dashboard_free != self.state.get('free_minute_available')
+                                                     or self.grant_mode != outside):
                 self.show_dashboard(self.selected)
             self.update_dashboard()
             windows = clients()
@@ -381,7 +395,8 @@ class DesktopUI:
                 if self.overlay_app:
                     if self.waiting_for_allowance and not app_view(self.state, self.overlay_app)['blocked'] and not self.busy:
                         self.return_to_game(self.overlay_app)
-                    elif self.last_free != self.state.get('free_minute_available') and not self.busy:
+                    elif (self.last_free != self.state.get('free_minute_available')
+                          or self.grant_mode != needs_schedule_approval(self.state, self.overlay_app)) and not self.busy:
                         app, retry = self.overlay_app, self.retry
                         self.dismiss()
                         self.show_blocked(app, retry=retry)

@@ -94,7 +94,7 @@ class BudgetTests(unittest.TestCase):
         blocked, _reasons = policy.tick(self.now, 0, {'minecraft'})
         self.assertNotIn('minecraft', blocked)
 
-    def test_minutes_at_bedtime_use_same_engine(self):
+    def test_ordinary_minutes_do_not_override_bedtime(self):
         now = dt.datetime(2026, 9, 5, 21, 5)
         saved = {
             'date': '2026-09-05',
@@ -110,9 +110,15 @@ class BudgetTests(unittest.TestCase):
         blocked, _reasons = policy.tick(now, 0, {'minecraft', 'digger', 'vlc'})
         self.assertEqual(policy.remaining('shared'), 60)
         self.assertEqual(policy.remaining('digger'), 60)
+        self.assertIn('minecraft', blocked)
+        self.assertIn('digger', blocked)
+        self.assertIn('vlc', blocked)
+        self.assertEqual(policy.play_allowed(now), (False, 'Bedtime'))
+        policy.schedule_extension_until = now.timestamp() + 60
+        blocked, _reasons = policy.tick(now, 0, {'minecraft'})
         self.assertNotIn('minecraft', blocked)
-        self.assertNotIn('digger', blocked)
-        self.assertNotIn('vlc', blocked)
-        blocked, _reasons = policy.tick(now, 60, {'minecraft'})
+        self.assertTrue(policy.play_allowed(now)[0])
+        self.assertFalse(policy.play_allowed(now + dt.timedelta(seconds=60))[0])
+        blocked, _reasons = policy.tick(now + dt.timedelta(seconds=60), 60, {'minecraft'})
         self.assertIn('minecraft', blocked)
         self.assertEqual(policy.remaining('shared'), 0)

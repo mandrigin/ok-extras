@@ -20,6 +20,8 @@ def main():
     parser.add_argument('--id')
     parser.add_argument('--revoke')
     parser.add_argument('--free-minute', action='store_true')
+    parser.add_argument('--with-desktop', action='store_true')
+    parser.add_argument('--after-bedtime', action='store_true')
     args = parser.parse_args()
     if os.geteuid() != 0:
         sys.stderr.write('parent authentication required\n')
@@ -50,9 +52,14 @@ def main():
         }
     else:
         parser.error('need --minutes, --until, or --revoke')
-    reply = request({'op': 'grant', 'grant': grant})
+    reply = request({'op': 'play_grant' if args.with_desktop or args.after_bedtime else 'grant',
+                     'grant': grant, 'after_bedtime': args.after_bedtime})
     print(reply['grant']['id'])
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except (RuntimeError, ValueError) as exc:
+        sys.stderr.write(str(exc) + '\n')
+        sys.exit(1)

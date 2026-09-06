@@ -119,6 +119,38 @@ class DesktopTests(unittest.TestCase):
         self.desktop.grant('vlc')
         self.assertEqual(commands[0], ['sudo', '-n', '/usr/bin/omarchy-kids-grant', '--free-minute', '--budget', 'vlc'])
 
+    def test_bedtime_buttons_are_explicit_and_require_parent_authentication(self):
+        self.state['desktop'] = {'phase': 'bedtime', 'remaining_seconds': 2100,
+                                 'blocked_label': 'Weekend downtime'}
+        self.state['app_status']['digger'] = {'blocked': True, 'reason': 'Desktop blocked: Weekend downtime',
+                                             'code': 'desktop_bedtime'}
+        self.statefile.write_text(json.dumps(self.state))
+        self.desktop.show_dashboard('digger')
+        self.desktop.show_blocked('digger')
+        self.root.update()
+        self.assertNotIn('1 more minute', self.button_texts())
+        self.assertNotIn('+15 min', self.button_texts())
+        self.assertIn('Allow 15 min past bedtime', self.button_texts())
+        self.assertIn('35:00', self.desktop.desktop_label.cget('text'))
+        self.assertIn('Weekend downtime', self.desktop.desktop_label.cget('text'))
+        commands = []
+        self.desktop.background = lambda command, callback: commands.append(command)
+        button = next(w for w in self.widgets() if w.winfo_class() == 'TButton' and w.cget('text') == 'Allow 15 min past bedtime')
+        button.invoke()
+        self.assertEqual(commands[0][0], 'pkexec')
+        self.assertIn('--with-desktop', commands[0])
+        self.assertIn('--after-bedtime', commands[0])
+        from PIL import ImageGrab
+        ImageGrab.grab().save('/tmp/ok-extras-bedtime.png')
+
+    def test_desktop_block_keeps_controls_open_even_after_app_grant(self):
+        self.state['app_status']['digger'] = {'blocked': True, 'reason': 'Desktop time is up', 'code': 'desktop_limit'}
+        self.statefile.write_text(json.dumps(self.state))
+        self.desktop.show_blocked('digger')
+        self.desktop.background = lambda command, callback: callback(subprocess.CompletedProcess(command, 0, '', ''))
+        self.desktop.grant('digger', 15)
+        self.assertIsNotNone(self.desktop.overlay)
+
     def test_successful_extension_closes_controls_restores_and_focuses_game(self):
         hypr = self.patch(self.module, 'hypr')
         self.desktop.show_dashboard('digger')

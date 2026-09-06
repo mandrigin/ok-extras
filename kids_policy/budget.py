@@ -96,13 +96,13 @@ class Policy:
 
     def play_allowed(self, now):
         self.burn_unused_at_bedtime(now)
+        if getattr(self, 'schedule_extension_until', 0) > now.timestamp():
+            return True, None
         if in_play_window(now, self.config['play_windows']):
             if any(self.remaining(name) > 0 for name in ('shared', 'digger', 'vlc', 'micropolis', 'retro')):
                 return True, None
             return False, 'Time is up'
         if after_cutoff(now, self.config['play_windows']):
-            if any(self.remaining(name) > 0 for name in ('shared', 'digger', 'vlc', 'micropolis', 'retro')):
-                return True, None
             return False, 'Bedtime'
         return False, 'Too early'
 
@@ -156,11 +156,10 @@ class Policy:
         if self.remaining('retro') <= 0:
             blocked.add('retro')
             reasons.append('Retro games daily limit reached')
-        if early:
+        extended = getattr(self, 'schedule_extension_until', 0) > now.timestamp()
+        if (early or evening) and not extended:
             blocked.update({'digger', 'minecraft', 'stardew_valley', 'vlc', 'micropolis', 'retro'})
-            reasons.append('Too early')
-        if evening and all(self.remaining(name) <= 0 for name in ('shared', 'digger', 'vlc', 'micropolis', 'retro')):
-            reasons.append('Bedtime')
+            reasons.append('Bedtime' if evening else 'Too early')
         return blocked, reasons
 
     def remaining(self, name):

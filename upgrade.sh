@@ -19,6 +19,7 @@ PY
 )
 [[ -n ${CHILD:-} ]] || exit 1
 cd "$SRC"
+python3 packaging/configure_desktop.py --check
 omarchy-pkg-add tk python-pillow gcc make patch pkgconf sdl2-compat zlib libx11 vlc-plugin-ffmpeg retroarch libretro-genesis-plus-gx libretro-nestopia retroarch-assets-ozone
 command -v java >/dev/null || omarchy-pkg-add jre21-openjdk
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
@@ -28,6 +29,7 @@ BACKUP=$(mktemp -d /var/lib/omarchy-kids/upgrade-backup-XXXXXXXX)
 chmod 700 "$BACKUP"
 cp -a /opt/omarchy-kids-policy "$BACKUP/code"
 cp -a /etc/omarchy-kids "$BACKUP/config"
+cp -a /usr/share/omarchy/lib/parent/omarchy_kids/screen_time/service.py "$BACKUP/native-time-service.py"
 cp -a /etc/sudoers.d/zzz-omarchy-kids-launch "$BACKUP/sudoers"
 [[ ! -f $CHILD_HOME/.config/omarchy/shell.json ]] || cp -a "$CHILD_HOME/.config/omarchy/shell.json" "$BACKUP/shell.json"
 echo "Backup: $BACKUP"
@@ -48,6 +50,25 @@ as_child systemctl --user stop omarchy-kids-hud.service omarchy-kids-game-time-d
 install -d -m 0755 /opt/omarchy-kids-policy
 cp -a kids_policy hud.py viewer.py shell /opt/omarchy-kids-policy/
 chown -R root:root /opt/omarchy-kids-policy
+python3 packaging/configure_desktop.py
+if ! systemctl restart omarchy-kids-timed.service; then
+  cp -a "$BACKUP/native-time-service.py" /usr/share/omarchy/lib/parent/omarchy_kids/screen_time/service.py
+  systemctl restart omarchy-kids-timed.service
+  echo 'Native time service restored; desktop integration upgrade failed.' >&2
+  exit 1
+fi
+python3 - "$CHILD_UID" <<'PY'
+import sys,time
+sys.path.insert(0, '/opt/omarchy-kids-policy')
+from kids_policy.desktop import status
+for attempt in range(10):
+    current = status(int(sys.argv[1]))
+    if current.get('extension_supported'):
+        break
+    time.sleep(0.5)
+else:
+    raise SystemExit('Native desktop-time integration did not become ready')
+PY
 install -m 0755 bin/* /usr/bin/
 install -m 0644 polkit/com.omarchy.kids.policy /usr/share/polkit-1/actions/com.omarchy.kids.policy
 
@@ -87,4 +108,4 @@ state=json.load(open('/var/lib/omarchy-kids/usage.json'))
 assert 'app_status' in state, 'Policy daemon did not load the new version'
 print('App allowances:',state['enabled_apps'])
 PY
-printf '%s\n' 'Upgraded: click Digger or Videos in the bar for app-specific time and parent controls.'
+printf '%s\n' 'Upgraded: app controls now show desktop restrictions and offer a parent-approved bedtime extension.'

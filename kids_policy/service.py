@@ -20,6 +20,7 @@ from kids_policy.paths import ALLOWLIST, CGROUP_ROOT, CONFIG, FAILCLOSED, LEGACY
 from kids_policy.scan import games, identity
 from kids_policy.schedule import minutes_until_cutoff, next_open_label
 from kids_policy.store import read_json, write_json
+from kids_policy import desktop
 
 LOG = logging.getLogger('omarchy-kids-policy')
 
@@ -99,6 +100,22 @@ class Daemon:
         self.running = True
         self.events = []
         self.sock = None
+        self.desktop = {}
+        self.refresh_desktop()
+
+    def refresh_desktop(self):
+        self.desktop = desktop.status(self.uid)
+        self.policy.schedule_extension_until = self.desktop.get('extension_until') or 0
+
+    def tick_policy(self, now, mono, running):
+        reason, code = desktop.refusal(self.desktop)
+        # Frozen games must not spend their remaining app allowance while
+        # the separate desktop gate prevents the child from playing.
+        blocked, reasons = self.policy.tick(now, mono, set() if code else running)
+        if code:
+            blocked.update(SCHEDULED)
+            reasons.append(reason)
+        return blocked, reasons
 
     def stop(self, *_args):
         self.running = False
@@ -116,6 +133,7 @@ class Daemon:
 
     def publish(self, now, found, blocked, reasons):
         snap = self.policy.snapshot(now)
+        snap['desktop'] = getattr(self, 'desktop', {})
         snap['enabled_apps'] = [app for app in APPS if app in enabled_ids(self.config)]
         snap['app_status'] = {app: self.app_permission(app, now) for app in APPS}
         snap['play_windows'] = self.config['play_windows']
@@ -205,11 +223,15 @@ class Daemon:
             return {'blocked': True, 'reason': 'This app is not on the parent allow-list', 'code': 'not_allowed'}
         if app not in APPS:
             return {'blocked': True, 'reason': 'Unknown app', 'code': 'unknown_app'}
+        reason, code = desktop.refusal(getattr(self, 'desktop', {}))
+        if code:
+            return {'blocked': True, 'reason': reason, 'code': code}
         # Read the current allowance without changing the accounting clock.
         label, budget, _field = APPS[app]
         allowed, reason = self.policy.play_allowed(now)
         if not allowed:
-            return {'blocked': True, 'reason': reason or 'Outside allowed hours', 'code': 'schedule'}
+            return {'blocked': True, 'reason': reason or 'Outside allowed hours',
+                    'code': 'schedule' if self.policy.bedtime(now) else 'limit'}
         if self.policy.remaining(budget) <= 0:
             return {'blocked': True, 'reason': f'{label} daily limit reached', 'code': 'limit'}
         return {'blocked': False, 'reason': '', 'code': ''}
@@ -219,6 +241,8 @@ class Daemon:
         if not spec:
             return {'ok': False, 'error': 'unknown app'}
         now = dt.datetime.now()
+        if hasattr(self, 'desktop'):
+            self.refresh_desktop()
         _found, running = games(self.uid)
         self.policy.tick(now, time.monotonic(), running)
         permission = self.app_permission(app, now)
@@ -260,6 +284,11 @@ class Daemon:
             return {'ok': False, 'error': 'unknown budget'}
         if self.policy.state.get('free_minute_used'):
             return {'ok': False, 'error': 'already used today'}
+        if hasattr(self, 'desktop'):
+            self.refresh_desktop()
+            reason, code = desktop.refusal(self.desktop)
+            if code or self.policy.bedtime(dt.datetime.now()):
+                return {'ok': False, 'error': reason or 'Ask a parent to play outside allowed hours.'}
         today = self.policy.state['date']
         self.policy.state['free_minute_used'] = True
         return self.grant({
@@ -272,6 +301,26 @@ class Daemon:
             'approver': 'free-minute',
             'created_at': dt.datetime.now().isoformat(timespec='seconds'),
         })
+
+    def play_grant(self, payload, after_bedtime=False):
+        # The socket is root-only; the public helper requires polkit/sudo.
+        grant = Grant.from_dict(payload)
+        if (grant.kind != 'minutes' or grant.child_uid != self.uid
+                or grant.budget not in {'shared', 'digger', 'vlc', 'micropolis', 'retro'}
+                or type(grant.minutes) not in (int, float)
+                or not 1 <= grant.minutes <= 60):
+            raise ValueError('Choose between 1 and 60 minutes for one app allowance.')
+        for existing in self.policy.grant_objects():
+            if existing.id == grant.id:
+                return {'ok': True, 'created': False, 'grant': existing.to_dict()}
+        now = dt.datetime.now()
+        if grant.date != str(now.date()):
+            raise ValueError('Grant date is no longer current. Try again.')
+        if self.policy.bedtime(now) and not after_bedtime:
+            raise ValueError('Outside allowed hours. Choose the parent option to play past bedtime.')
+        self.desktop = desktop.approve(self.uid, grant.minutes, after_bedtime, grant.id)
+        self.policy.schedule_extension_until = self.desktop.get('extension_until') or 0
+        return self.grant(payload)
 
     def revoke(self, grant_id):
         grants = self.policy.grant_objects()
@@ -289,6 +338,8 @@ class Daemon:
             return self.adopt(str(request.get('app', '')), request.get('pid'))
         if op == 'grant':
             return self.grant(request['grant'])
+        if op == 'play_grant':
+            return self.play_grant(request['grant'], request.get('after_bedtime') is True)
         if op == 'free_minute':
             return self.free_minute(request.get('budget', 'all'))
         if op == 'revoke':
@@ -329,7 +380,8 @@ class Daemon:
             while self.running:
                 now = dt.datetime.now()
                 found, running = games(self.uid)
-                blocked, reasons = self.policy.tick(now, time.monotonic(), running)
+                self.refresh_desktop()
+                blocked, reasons = self.tick_policy(now, time.monotonic(), running)
                 events = self.enforce(found, blocked, reasons)
                 self.events = (self.events + events)[-20:]
                 for event in events:
