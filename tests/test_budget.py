@@ -30,12 +30,28 @@ class BudgetTests(unittest.TestCase):
         self.assertEqual(policy.remaining('digger'), 0)
         self.assertEqual(policy.remaining('shared'), 3000)
 
-    def test_vlc_is_not_charged(self):
+    def test_free_minute_flag_resets_next_day(self):
+        saved = {
+            'date': '2026-09-05',
+            'schema_version': 2,
+            'shared_used_seconds': 3600,
+            'digger_used_seconds': 600,
+            'free_minute_used': True,
+        }
+        policy = Policy(saved, self.config, dt.datetime(2026, 9, 6, 12), 0)
+        self.assertFalse(policy.state.get('free_minute_used'))
+        snap = policy.snapshot(dt.datetime(2026, 9, 6, 12))
+        self.assertTrue(snap['free_minute_available'])
+        self.assertEqual(snap['extra_minute_tiers'], [15, 30, 60])
+
+    def test_vlc_is_own_category(self):
         policy = self.policy()
         policy.tick(self.now, 0, {'vlc'})
         policy.tick(self.now, 1200, {'vlc'})
         self.assertEqual(policy.shared.used, 0)
         self.assertEqual(policy.digger.used, 0)
+        self.assertEqual(policy.vlc.used, 1200)
+        self.assertEqual(policy.remaining('vlc'), 2400)
 
     def test_clock_rollback_does_not_reset(self):
         saved = {'date': '2026-09-05', 'shared_used_seconds': 3600, 'digger_used_seconds': 0, 'schema_version': 2}

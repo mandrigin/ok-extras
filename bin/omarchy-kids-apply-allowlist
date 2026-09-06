@@ -1,0 +1,32 @@
+#!/usr/bin/python3
+import json
+import os
+import pwd
+import sys
+from pathlib import Path
+
+sys.path.insert(0, '/opt/omarchy-kids-policy')
+from kids_policy.allowlist import hide_desktop_files
+from kids_policy.migrate import default_config
+from kids_policy.configver import load_or_migrate, migrate_allowlist, migrate_policy
+from kids_policy.paths import ALLOWLIST, CONFIG
+from kids_policy.store import read_json
+
+
+def main():
+    config = default_config()
+    loaded = load_or_migrate(CONFIG, 'policy', lambda data: migrate_policy(data, config['child_uid']))
+    config.update({key: value for key, value in loaded.items() if key != 'apps'})
+    allowlist = load_or_migrate(ALLOWLIST, 'allowlist', migrate_allowlist)
+    if allowlist:
+        config['allowlist'] = allowlist
+    uid = int(config.get('child_uid', 1000))
+    home = Path(pwd.getpwuid(uid).pw_dir)
+    count = hide_desktop_files(home, config)
+    for path in (home / '.local/share/applications').glob('*.desktop'):
+        os.chown(path, uid, pwd.getpwuid(uid).pw_gid)
+    print(f'hidden {count} desktop entries')
+
+
+if __name__ == '__main__':
+    main()

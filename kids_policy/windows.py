@@ -35,6 +35,11 @@ def hyprctl(uid, args, timeout=3):
     return result.stdout.decode(errors='replace')
 
 
+def close_window(uid, address):
+    lua = f'hl.dsp.window.close({{ window = "address:{address}" }})'
+    hyprctl(uid, ['dispatch', lua])
+
+
 def clients(uid):
     raw = hyprctl(uid, ['-j', 'clients'])
     if not raw:

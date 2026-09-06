@@ -1,0 +1,13 @@
+#!/bin/bash
+set -euo pipefail
+python3 - <<'PY'
+import sys
+sys.path.insert(0, '/opt/omarchy-kids-policy')
+from kids_policy.configver import backup
+from kids_policy.paths import ALLOWLIST, CONFIG
+print('backup', backup(CONFIG, 'policy'))
+print('backup', backup(ALLOWLIST, 'allowlist'))
+PY
+/usr/bin/omarchy-kids-apply-allowlist
+systemctl restart omarchy-kids-policy.service
+echo reloaded

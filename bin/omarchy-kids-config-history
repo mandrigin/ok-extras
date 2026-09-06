@@ -1,0 +1,11 @@
+#!/usr/bin/python3
+import sys
+sys.path.insert(0, '/opt/omarchy-kids-policy')
+from kids_policy.configver import history
+
+kind = sys.argv[1] if len(sys.argv) > 1 else None
+rows = history(kind)
+if not rows:
+    print('no backups')
+else:
+    print('\n'.join(rows))

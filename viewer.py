@@ -42,9 +42,10 @@ def ask_minutes():
         grant(value, 'all')
 
 
-ttk.Button(buttons, text='+1 min', command=lambda: grant(1, 'all')).grid(row=0, column=0, padx=4, pady=4)
-ttk.Button(buttons, text='+15 min', command=lambda: grant(15, 'all')).grid(row=0, column=1, padx=4, pady=4)
-ttk.Button(buttons, text='Custom minutes', command=ask_minutes).grid(row=0, column=2, padx=4, pady=4)
+ttk.Button(buttons, text='+15 min', command=lambda: grant(15, 'all')).grid(row=0, column=0, padx=4, pady=4)
+ttk.Button(buttons, text='+30 min', command=lambda: grant(30, 'all')).grid(row=0, column=1, padx=4, pady=4)
+ttk.Button(buttons, text='+1 h', command=lambda: grant(60, 'all')).grid(row=0, column=2, padx=4, pady=4)
+ttk.Button(buttons, text='Custom', command=ask_minutes).grid(row=0, column=3, padx=4, pady=4)
 
 
 def refresh():
@@ -56,7 +57,8 @@ def refresh():
         details.config(text=(
             f"Minecraft: {apps.get('minecraft', 0) / 60:.1f} min\n"
             f"Stardew Valley: {apps.get('stardew_valley', 0) / 60:.1f} min\n"
-            f"Shared daily limit: {state['daily_limit_minutes']:g} min"
+            f"Shared games: {state['daily_limit_minutes']:g} min\n"
+            f"Videos: {int(state.get('vlc_remaining_seconds') or 0) // 60}:{int(state.get('vlc_remaining_seconds') or 0) % 60:02d} remaining ({state.get('vlc_daily_limit_minutes', 60):g} min/day)"
         ))
         digger_seconds = int(state['digger_remaining_seconds'])
         digger.config(text=f"Digger: {digger_seconds // 60}:{digger_seconds % 60:02d} remaining ({state['digger_daily_limit_minutes']:g} min/day)")

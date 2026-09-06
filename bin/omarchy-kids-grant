@@ -15,16 +15,21 @@ from kids_policy.store import read_json
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--minutes', type=float)
-    parser.add_argument('--budget', choices=('shared', 'digger', 'all'), default='all')
+    parser.add_argument('--budget', choices=('shared', 'digger', 'vlc', 'all'), default='all')
     parser.add_argument('--until')
     parser.add_argument('--id')
     parser.add_argument('--revoke')
+    parser.add_argument('--free-minute', action='store_true')
     args = parser.parse_args()
     if os.geteuid() != 0:
         sys.stderr.write('parent authentication required\n')
         sys.exit(1)
     if args.revoke:
         request({'op': 'revoke', 'id': args.revoke})
+        return
+    if args.free_minute:
+        reply = request({'op': 'free_minute'})
+        print(reply.get('grant', {}).get('id', 'ok'))
         return
     config = default_config()
     config.update(read_json(CONFIG, {}) or {})

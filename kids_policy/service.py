@@ -13,11 +13,12 @@ from kids_policy.cgroup import CgroupTree, write_failclosed
 from kids_policy.classify import SCHEDULED
 from kids_policy.grants import Grant, revoke_grant, upsert_grant
 from kids_policy.migrate import default_config, migrate_state
-from kids_policy.paths import CGROUP_ROOT, CONFIG, FAILCLOSED, LEGACY_CONFIG, SOCKET, STATE, USAGE
+from kids_policy.allowlist import is_allowed_window
+from kids_policy.configver import load_or_migrate, migrate_allowlist, migrate_policy
+from kids_policy.paths import ALLOWLIST, CGROUP_ROOT, CONFIG, FAILCLOSED, LEGACY_CONFIG, SOCKET, STATE, USAGE
 from kids_policy.scan import games, identity
 from kids_policy.schedule import minutes_until_cutoff, next_open_label
 from kids_policy.store import read_json, write_json
-from kids_policy.windows import hide_pids, show_pids
 
 LOG = logging.getLogger('omarchy-kids-policy')
 
@@ -30,10 +31,13 @@ def load_config():
         config['child_uid'] = int(legacy.get('uid', config['child_uid']))
         config['shared_daily_minutes'] = float(legacy.get('daily_minutes', config['shared_daily_minutes']))
         config['digger_daily_minutes'] = float(legacy.get('digger_daily_minutes', config['digger_daily_minutes']))
-    loaded = read_json(CONFIG, {}) or {}
+    loaded = load_or_migrate(CONFIG, 'policy', lambda data: migrate_policy(data, config['child_uid']))
     config.update({key: value for key, value in loaded.items() if key != 'apps'})
     if isinstance(loaded.get('apps'), dict):
         config['apps'].update(loaded['apps'])
+    allowlist = load_or_migrate(ALLOWLIST, 'allowlist', migrate_allowlist)
+    if allowlist:
+        config['allowlist'] = allowlist
     return config
 
 
@@ -94,7 +98,6 @@ class Daemon:
         self.running = True
         self.events = []
         self.sock = None
-        self.hidden_pids = set()
 
     def stop(self, *_args):
         self.running = False
@@ -175,10 +178,22 @@ class Daemon:
                     if event:
                         events.append(event)
         events.extend(self.fallback.release(keep))
-        blocked_pids = {ident.pid for app, idents in found.items() if app in blocked for ident in idents}
-        hide_pids(self.uid, blocked_pids - self.hidden_pids)
-        show_pids(self.uid, self.hidden_pids - blocked_pids)
-        self.hidden_pids = blocked_pids
+        events.extend(self.enforce_allowlist())
+        return events
+
+    def enforce_allowlist(self):
+        from kids_policy.windows import clients, close_window
+        events = []
+        for client in clients(self.uid):
+            title = client.get('title') or ''
+            class_name = client.get('class') or ''
+            if is_allowed_window(self.config, title, class_name):
+                continue
+            address = client.get('address')
+            if not address:
+                continue
+            close_window(self.uid, address)
+            events.append(f'closed {title or class_name}')
         return events
 
     def may_launch(self, app):
@@ -201,18 +216,39 @@ class Daemon:
         self.cgroups.adopt(app, int(pid))
         return {'ok': True, 'pid': int(pid)}
 
+    def refresh_limits(self):
+        from kids_policy.grants import extra_seconds
+        today = self.policy.state['date']
+        grants = self.policy.grant_objects()
+        self.policy.shared.limit = float(self.config['shared_daily_minutes']) * 60 + extra_seconds(grants, 'shared', today)
+        self.policy.digger.limit = float(self.config['digger_daily_minutes']) * 60 + extra_seconds(grants, 'digger', today)
+        self.policy.vlc.limit = float(self.config.get('vlc_daily_minutes', 60)) * 60 + extra_seconds(grants, 'vlc', today)
+
     def grant(self, payload):
         grant = Grant.from_dict(payload)
         grants = self.policy.grant_objects()
         grants, stored, created = upsert_grant(grants, grant)
         self.policy.state['grants'] = [item.to_dict() for item in grants]
-        today = self.policy.state['date']
-        from kids_policy.grants import extra_seconds
-        self.policy.shared.limit = float(self.config['shared_daily_minutes']) * 60 + extra_seconds(grants, 'shared', today)
-        self.policy.digger.limit = float(self.config['digger_daily_minutes']) * 60 + extra_seconds(grants, 'digger', today)
+        self.refresh_limits()
         found, _running = games(self.uid)
         self.publish(dt.datetime.now(), found, set(), [])
         return {'ok': True, 'created': created, 'grant': stored.to_dict()}
+
+    def free_minute(self):
+        if self.policy.state.get('free_minute_used'):
+            return {'ok': False, 'error': 'already used today'}
+        today = self.policy.state['date']
+        self.policy.state['free_minute_used'] = True
+        return self.grant({
+            'id': f'free-minute-{today}',
+            'kind': 'minutes',
+            'minutes': 1,
+            'budget': 'all',
+            'date': today,
+            'child_uid': self.uid,
+            'approver': 'free-minute',
+            'created_at': dt.datetime.now().isoformat(timespec='seconds'),
+        })
 
     def revoke(self, grant_id):
         grants = self.policy.grant_objects()
@@ -230,6 +266,8 @@ class Daemon:
             return self.adopt(str(request.get('app', '')), request.get('pid'))
         if op == 'grant':
             return self.grant(request['grant'])
+        if op == 'free_minute':
+            return self.free_minute()
         if op == 'revoke':
             return self.revoke(str(request.get('id', '')))
         return {'ok': False, 'error': 'unknown op'}

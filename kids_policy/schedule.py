@@ -38,6 +38,10 @@ def window_end_minutes(now, windows):
     return parse_hhmm(window['end'])
 
 
+def after_cutoff(now, windows):
+    return minutes_now(now) >= window_end_minutes(now, windows)
+
+
 def minutes_until_cutoff(now, windows):
     remaining = window_end_minutes(now, windows) - minutes_now(now)
     if remaining <= 0:

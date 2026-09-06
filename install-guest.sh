@@ -16,6 +16,9 @@ install -m 0755 "$SRC/bin/"* /usr/bin/
 install -m 0755 "$SRC/lib/"* /usr/lib/omarchy-kids/
 install -m 0644 "$SRC/systemd/"*.service /etc/systemd/system/
 install -m 0644 "$SRC/nft/net.nft" /etc/omarchy-kids/net.nft
+if [[ ! -f /etc/omarchy-kids/allowlist.json ]]; then
+  install -m 0644 "$SRC/config/allowlist.json" /etc/omarchy-kids/allowlist.json
+fi
 install -m 0644 "$SRC/polkit/com.omarchy.kids.policy" /usr/share/polkit-1/actions/com.omarchy.kids.policy
 rm -f /etc/sudoers.d/60-omarchy-kids-launch
 install -m 0440 "$SRC/sudoers/zzz-omarchy-kids-launch" /etc/sudoers.d/zzz-omarchy-kids-launch
@@ -26,16 +29,16 @@ import json
 from pathlib import Path
 import sys
 sys.path.insert(0, '/opt/omarchy-kids-policy')
-from kids_policy.migrate import default_config
-from kids_policy.store import write_json
-config = default_config(1000)
+from kids_policy.configver import load_or_migrate, migrate_allowlist, migrate_policy
+from kids_policy.paths import ALLOWLIST, CONFIG
+uid = 1000
 legacy = Path('/etc/omarchy-kids/game-limits.json')
-if legacy.exists():
+if not CONFIG.exists() and legacy.exists():
     data = json.loads(legacy.read_text())
-    config['child_uid'] = int(data.get('uid', 1000))
-    config['shared_daily_minutes'] = float(data.get('daily_minutes', 60))
-    config['digger_daily_minutes'] = float(data.get('digger_daily_minutes', 10))
-write_json('/etc/omarchy-kids/policy.json', config)
+    CONFIG.parent.mkdir(parents=True, exist_ok=True)
+    CONFIG.write_text(json.dumps({'child_uid': int(data.get('uid', uid)), 'shared_daily_minutes': float(data.get('daily_minutes', 60)), 'digger_daily_minutes': float(data.get('digger_daily_minutes', 10))}) + '\n')
+load_or_migrate(CONFIG, 'policy', lambda data: migrate_policy(data, uid))
+load_or_migrate(ALLOWLIST, 'allowlist', migrate_allowlist)
 PY
 
 if ! getent group kids-media >/dev/null; then
@@ -90,6 +93,7 @@ install -m 0644 "$SRC/desktop/steam.hidden.desktop" /usr/local/share/application
 install -m 0644 "$SRC/desktop/prism.hidden.desktop" /usr/local/share/applications/org.prismlauncher.PrismLauncher.desktop
 chown vltn:vltn /home/vltn/.local/share/applications/*.desktop
 update-desktop-database /usr/local/share/applications >/dev/null 2>&1 || true
+python3 /usr/bin/omarchy-kids-apply-allowlist
 
 /usr/lib/omarchy-kids/setup-cgroups
 systemctl stop omarchy-kids-screentime.service 2>/dev/null || true

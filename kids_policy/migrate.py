@@ -10,6 +10,7 @@ def migrate_state(saved):
         state.setdefault('grants', [])
         state.setdefault('warnings', {})
         state.setdefault('failclosed', False)
+        state.setdefault('free_minute_used', False)
         state.setdefault('apps', {})
         state.setdefault('shared_used_seconds', saved.get('shared_used_seconds', 0))
         state.setdefault('digger_used_seconds', saved.get('digger_used_seconds', 0))
@@ -41,6 +42,13 @@ def default_config(uid=1000):
             'weekend': {'start': '08:00', 'end': '21:00'},
         },
         'warnings_minutes': [5, 1],
+        'extra_minute_tiers': [15, 30, 60],
+        'vlc_daily_minutes': 60,
+        'allowlist': {
+            'games': ['digger', 'minecraft', 'stardew_valley'],
+            'videos': ['vlc'],
+            'tools': ['screentime'],
+        },
         'apps': {
             'digger': {
                 'label': 'Digger',

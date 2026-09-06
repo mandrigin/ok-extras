@@ -1,33 +1,39 @@
-# Omarchy Kids extras
+# ok-extras
 
-Local extras for the **Omarchy Kids Test** VM. This repository is private/local. It is not an upstream Omarchy PR.
+Extras on top of [peterholko/omarchy-kids](https://github.com/peterholko/omarchy-kids): allow-list, per-category time (games / Digger / videos), bedtime, offline VLC library, network isolation, and the remaining-time HUD.
 
-Base: Omarchy kids foundation `97a571f` ([PR #9750](https://github.com/omacom/omarchy/pull/9750), `peterholko/omarchy:kids/child-profile`).
+This repo does **not** replace Kids core, School, DNS, or Number Grove. Install `omarchy-kids` first, then this overlay.
 
-Paid Minecraft/Stardew content is still not installed.
+## Depends on
 
-## Features
+- [peterholko/omarchy-kids](https://github.com/peterholko/omarchy-kids) (`omarchy-kids-core`; `omarchy-kids-time` recommended)
+- A child account (UID in `policy.json`)
 
-- Parent desktop account `parent` (wheel, private home). Elevation for the child still uses the kids parent/root password; `parent` sudo uses the parent login password.
-- Child UID nftables isolation (IPv4/IPv6). Localhost IPC allowed except DNS to `127.0.0.53`.
-- Policy service: shared 60-minute Minecraft/Stardew budget, separate 10-minute Digger budget, weekday 09:00–21:00 and weekend 08:00–21:00 windows, cgroup freeze with pidfd fallback, fail-closed on service failure.
-- Parent extensions: +minutes (does not cross bedtime) and allow-until schedule override, via polkit.
-- Offline video library: VLC `--no-network`, `/srv/kids-media/videos`, parent publish/download helpers.
-- Approved launchers go through `omarchy-kids-launch`. Steam/Prism menu entries are hidden.
+## What this adds
 
-## Layout
+- `/etc/omarchy-kids/allowlist.json` — anything not listed is hidden and closed
+- Separate budgets: shared games, Digger, VLC
+- One free “1 more minute”, then parent 15/30/60
+- Offline Kids Videos (`yt-dlp` as parent → VLC `--no-network`)
+- Child UID nftables block; parent keeps internet
+- Config `schema_version` + `/var/lib/omarchy-kids/config-history/`
 
-| Path | Role |
-| --- | --- |
-| `kids_policy/` | Authoritative policy logic |
-| `bin/` | launch, grant, publish, download, policy daemon |
-| `systemd/` | cgroup, policy, fail-closed, net |
-| `nft/net.nft` | child `meta skuid` isolation |
-| `../omarchy-fork/` | local Omarchy worktree stacked on the kids PR |
+Parent/AI edits JSON, then `sudo omarchy-kids-reload`. See [PARENT.md](PARENT.md).
 
-## Guest paths
+## Install
 
-- Config: `/etc/omarchy-kids/policy.json`
-- State: `/var/lib/omarchy-kids/state.json` and `usage.json`
-- Media: `/srv/kids-media/videos`
-- Parent login password (first create only): `/root/parent-login-password`
+```sh
+sudo bash install-guest.sh /path/to/ok-extras
+sudo omarchy-kids-reload
+```
+
+Do not blindly rerun install on a live machine if you already have parent-edited `policy.json` / `allowlist.json`; current install migrates those instead of clobbering them.
+
+## Upgrade
+
+```sh
+git pull --ff-only
+sudo omarchy-kids-reload
+```
+
+Replace code under `/opt/omarchy-kids-policy` and `/usr/bin/omarchy-kids-*`. Keep `/etc/omarchy-kids/*.json` and `/var/lib/omarchy-kids/state.json`.
