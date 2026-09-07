@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 from kids_policy import desktop, native_extension
 from kids_policy.budget import Policy, empty_day
-from kids_policy.migrate import default_config
+from tests.fixtures import default_config
 from kids_policy.service import Daemon
 
 ROOT = Path(__file__).resolve().parents[1]

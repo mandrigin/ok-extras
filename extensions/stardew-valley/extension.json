@@ -1,0 +1,44 @@
+{
+  "id": "stardew-valley",
+  "description": "Stardew Valley",
+  "apps": {
+    "stardew_valley": {
+      "desktop": "stardew-valley.desktop",
+      "icon": "steam",
+      "label": "Stardew Valley",
+      "budget": "shared",
+      "schedule": true,
+      "argv": [
+        "/usr/bin/steam",
+        "steam://rungameid/413150"
+      ],
+      "match": {
+        "process": [
+          {
+            "names": [
+              "stardew valley",
+              "stardewvalley",
+              "stardewmoddingap"
+            ],
+            "executables": [
+              "stardew valley",
+              "stardewvalley",
+              "stardewmoddingapi"
+            ]
+          }
+        ],
+        "windows": [
+          "stardew",
+          "steam_app_413150"
+        ]
+      },
+      "category": "games"
+    }
+  },
+  "budgets": {
+    "shared": {
+      "label": "Games",
+      "daily_minutes": 60
+    }
+  }
+}

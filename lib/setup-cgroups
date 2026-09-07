@@ -1,8 +1,12 @@
 #!/bin/bash
-set -uo pipefail
-root=/sys/fs/cgroup/omarchy-kids
-mkdir -p "$root" || exit 0
-for app in digger minecraft stardew_valley vlc; do
-  mkdir -p "$root/$app" || continue
-done
-exit 0
+set -euo pipefail
+exec python3 - <<'PY'
+import json,sys
+sys.path.insert(0, '/opt/omarchy-kids-policy')
+from kids_policy.cgroup import CgroupTree
+from kids_policy.configver import migrate_policy
+from kids_policy.registry import managed_apps
+with open('/etc/omarchy-kids/policy.json') as stream:
+    config, _ = migrate_policy(json.load(stream))
+CgroupTree().setup(managed_apps(config))
+PY

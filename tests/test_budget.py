@@ -2,7 +2,8 @@ import datetime as dt
 import unittest
 
 from kids_policy.budget import Policy
-from kids_policy.migrate import default_config, migrate_state
+from tests.fixtures import default_config
+from kids_policy.migrate import migrate_state
 
 
 class BudgetTests(unittest.TestCase):
@@ -65,17 +66,17 @@ class BudgetTests(unittest.TestCase):
         self.assertEqual(policy.shared.used, 0)
         self.assertEqual(policy.digger.used, 0)
 
-    def test_bedtime_zeros_unused_limits(self):
+    def test_bedtime_blocks_without_fabricating_usage(self):
         now = dt.datetime(2026, 9, 5, 21, 5)
         policy = self.policy(now=now)
         blocked, reasons = policy.tick(now, 10, {'digger', 'vlc'})
         self.assertIn('vlc', blocked)
         self.assertIn('digger', blocked)
         self.assertIn('minecraft', blocked)
-        self.assertEqual(policy.remaining('digger'), 0)
-        self.assertEqual(policy.remaining('shared'), 0)
-        self.assertEqual(policy.digger.used, 600)
-        self.assertEqual(policy.shared.used, 3600)
+        self.assertEqual(policy.remaining('digger'), 600)
+        self.assertEqual(policy.remaining('shared'), 3600)
+        self.assertEqual(policy.digger.used, 0)
+        self.assertEqual(policy.shared.used, 0)
         self.assertTrue(any('bedtime' in reason.lower() or 'limit' in reason.lower() for reason in reasons))
 
     def test_minute_grant_extends_shared_only(self):
@@ -108,8 +109,8 @@ class BudgetTests(unittest.TestCase):
         }
         policy = Policy(saved, self.config, now, 0)
         blocked, _reasons = policy.tick(now, 0, {'minecraft', 'digger', 'vlc'})
-        self.assertEqual(policy.remaining('shared'), 60)
-        self.assertEqual(policy.remaining('digger'), 60)
+        self.assertEqual(policy.remaining('shared'), 3660)
+        self.assertEqual(policy.remaining('digger'), 660)
         self.assertIn('minecraft', blocked)
         self.assertIn('digger', blocked)
         self.assertIn('vlc', blocked)
@@ -121,4 +122,4 @@ class BudgetTests(unittest.TestCase):
         self.assertFalse(policy.play_allowed(now + dt.timedelta(seconds=60))[0])
         blocked, _reasons = policy.tick(now + dt.timedelta(seconds=60), 60, {'minecraft'})
         self.assertIn('minecraft', blocked)
-        self.assertEqual(policy.remaining('shared'), 0)
+        self.assertEqual(policy.remaining('shared'), 3660)

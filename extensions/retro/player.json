@@ -1,0 +1,23 @@
+{
+  "menu_driver": "ozone",
+  "assets_directory": "/usr/share/retroarch/assets",
+  "video_fullscreen": "false",
+  "video_scale": "4.0",
+  "video_smooth": "false",
+  "savestate_auto_save": "true",
+  "savestate_auto_load": "true",
+  "config_save_on_exit": "false",
+  "menu_show_online_updater": "false",
+  "menu_show_core_updater": "false",
+  "input_player1_up": "up",
+  "input_player1_down": "down",
+  "input_player1_left": "left",
+  "input_player1_right": "right",
+  "input_player1_a": "x",
+  "input_player1_b": "z",
+  "input_player1_y": "a",
+  "input_player1_start": "enter",
+  "input_player1_select": "rshift",
+  "input_menu_toggle": "f1",
+  "input_exit_emulator": "escape"
+}

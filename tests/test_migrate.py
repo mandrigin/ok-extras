@@ -13,7 +13,7 @@ class MigrateTests(unittest.TestCase):
             'digger_used_seconds': 600,
         }
         state = migrate_state(saved)
-        self.assertEqual(state['schema_version'], 2)
+        self.assertEqual(state['schema_version'], 3)
         self.assertEqual(state['digger_used_seconds'], 600)
         self.assertEqual(state['shared_used_seconds'], 12)
         self.assertEqual(state['grants'], [])

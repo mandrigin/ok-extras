@@ -5,10 +5,12 @@ import tempfile
 import unittest
 
 from kids_policy.budget import Policy, empty_day
-from kids_policy.classify import classify
-from kids_policy.migrate import default_config
-from kids_policy.presentation import window_app
-from kids_policy.retro import import_rom, refresh_playlist
+from tests.fixtures import classify
+from tests.fixtures import default_config
+from tests.fixtures import window_app
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'extensions/retro'))
+from retro import import_rom, refresh_playlist
 
 
 class RetroBudgetTests(unittest.TestCase):
@@ -66,10 +68,12 @@ class ImportTests(unittest.TestCase):
             import_rom('super_mario_bros', self.source, self.library)
         self.assertEqual(target.read_bytes(), original)
 
-    def test_unknown_game_wrong_console_and_bad_header_are_rejected(self):
-        for game in ('../escape', 'lion_king'):
+    def test_invalid_id_wrong_core_and_bad_header_are_rejected(self):
+        for game in ('../escape', 'bad/name'):
             with self.assertRaises(ValueError):
                 import_rom(game, self.source, self.library)
+        with self.assertRaises(ValueError):
+            import_rom('new_title', self.source, self.library, core='genesis_plus_gx')
         self.source.write_bytes(b'not a nes header')
         with self.assertRaisesRegex(ValueError, 'iNES'):
             import_rom('super_mario_bros', self.source, self.library)

@@ -1,128 +1,148 @@
-# ok-extras
+# ok-extras: parental controls for Omarchy Kids
 
-Extras on top of [peterholko/omarchy-kids](https://github.com/peterholko/omarchy-kids).
+A configurable parental-control layer for an existing Omarchy Kids installation. The core manages approved applications, allowance groups, local launchers, parent-approved extra time, and blocked-window controls. It does not install games or choose a family's software.
 
-**Principle: allow-list, default deny.** The kid only gets what is in `/etc/omarchy-kids/allowlist.json`. Everything else is not enabled (hidden and closed). This is always on, not only during school hours. Parent (or AI) edits that file; `sudo omarchy-kids-reload` applies it.
+## Responsibilities
 
-Also: per-category time (games / Digger / videos), bedtime, offline VLC library, child network isolation, remaining-time HUD.
+| Component | Owns |
+| --- | --- |
+| Omarchy Kids | Login, parent authentication, school mode, desktop time and bedtime locking |
+| ok-extras core | App registry, allow-list, per-app/shared allowances, process enforcement, launcher visibility, allowance UI |
+| Optional extensions | Application installation, app-specific launch/matching defaults, ROM and offline-video libraries |
+| Local configuration | Child/parent accounts, selected apps, limits, schedules, commands, window sizes, network policy and extension preferences |
 
-This repo does **not** replace Kids core, School, DNS, or Number Grove. Install `omarchy-kids` first, then this overlay.
-
-## Depends on
-
-- [peterholko/omarchy-kids](https://github.com/peterholko/omarchy-kids) (`omarchy-kids-core`; `omarchy-kids-time` recommended)
-- A child account (UID in `policy.json`)
-
-## What this adds
-
-- `/etc/omarchy-kids/allowlist.json` — anything not listed is hidden and closed
-- Separate budgets: shared games, Digger, Micropolis (30 minutes), Retro games (30 minutes shared), VLC
-- One free “1 more minute”, then parent 15/30/60
-- Offline Kids Videos (`yt-dlp` as parent → VLC `--no-network`)
-- Child UID nftables block; parent keeps internet
-- Config `schema_version` + `/var/lib/omarchy-kids/config-history/`
-
-Parent/AI edits JSON, then `sudo omarchy-kids-reload`. See [PARENT.md](PARENT.md).
+Target platform: Omarchy Kids on Arch Linux with Hyprland, Quickshell and systemd. This is not a desktop-independent Linux parental-control package. One child account is managed by each installation; multiple simultaneous child profiles are not yet supported.
 
 ## Install
 
+First install Omarchy Kids and create the child and parent accounts. Select them explicitly:
+
 ```sh
-sudo bash install-guest.sh /path/to/ok-extras
-sudo bash upgrade.sh
+sudo bash install-guest.sh --child CHILD_ACCOUNT --parent PARENT_ACCOUNT
 ```
 
-Do not blindly rerun install on a live machine if you already have parent-edited `policy.json` / `allowlist.json`; current install migrates those instead of clobbering them.
+A fresh installation has no games, no app allowance groups, and only the Screen Time control enabled. Networking is unchanged. Add `--offline` to explicitly isolate the selected child's network access. Account names and the firewall UID are generated from configuration.
 
-## Upgrade
+For an existing installation:
 
 ```sh
 sudo bash update.sh
 ```
 
-App controls show both the selected game's time and Desktop time. A parent's
-ordinary +15/+30/+60 grant adds game time and tops up Desktop time only when
-needed to cover that interval. It never changes allowed hours. Outside allowed
-hours, the separate **Allow 15/30/60 min past bedtime** action requires parent
-authentication and temporarily permits both the game and desktop. The exception
-expires automatically, including after a daemon restart; weekly schedules are
-unchanged. The free minute cannot override desktop limits or bedtime.
+Updates install core dependencies only. They preserve the configured apps, launch commands, allow-list, usage, grants, schedules, emulator settings and media libraries. Existing version-3 installations migrate their game definitions into ordinary version-4 configuration. Compatibility data under `kids_policy/legacy*` is used only for migration, never to select apps for a fresh installation.
 
-The upgrade installs a small compatibility hook in Omarchy's native screen-time
-service, backed up beside the original file and in the upgrade backup. Reapply
-this upgrade after an Omarchy update that replaces that service. Unsupported
-native layouts are rejected before installation, and missing desktop status
-keeps games blocked rather than reporting a successful extension.
+The update backs up installed code and configuration before migration and restores them if the core upgrade fails. A running child session gets the updated controls. If the shell cannot restart because the screen is locked, it can refresh at the next login. Running applications are not intentionally closed by the updater.
 
-The updater fetches a clean copy of this repo and runs `upgrade.sh`. It preserves
-machine-specific edits in your checkout, existing budgets, schedules and daily
-usage. Backups go to `/var/lib/omarchy-kids/upgrade-backup-*`.
+## Configure applications and allowances
 
-This upgrade installs Micropolis with an independent 30-minute daily budget;
-its menu entry follows the parent's allow-list. It builds a pinned Digger release with a resizable SDL
-window. Digger opens at four times its native pixel dimensions, fitted to the
-monitor and floating. Existing running games retain their executable and position.
+`/etc/omarchy-kids/policy.json` contains an `apps` registry and a `budgets` map. Each app selects an allowance group, or uses `null` for no daily allowance. Multiple apps can share any group; overlapping processes in one group consume wall-clock time once.
 
-The bar labels the native overall budget **Desktop** and shows separate app
-allowances. Click an app allowance for parent +15/+30/+60 controls. Successful
-extensions close the controls and return focus to the game; canceled authentication
-leaves the controls open. When an app runs out of time, its frozen window appears
-as a darkened grayscale preview with extension buttons. A denied launch opens the
-same controls, using the last captured preview when available.
+Example additions to an existing policy:
 
-The persistent user UI needs Tk and Pillow, installed by the upgrade. The root
-policy daemon remains responsible for enforcing limits. Desktop time is a separate
-native limit: parent grants from the app controls now coordinate both limits.
-
-## Launcher and allowed apps
-
-`/etc/omarchy-kids/allowlist.json` is the source of truth for launcher visibility
-and launch permissions. Add or remove app IDs in `games`, `videos`, and `tools`;
-an empty list stays empty. Installed apps that are not listed remain hidden.
-Upgrades preserve this list and do not automatically re-enable games.
-
-The daemon watches policy and allow-list changes and generates the child's
-desktop entries plus `/var/lib/omarchy-kids/launcher.json`. Omarchy's app library
-reads that manifest for both search results and launching, including freshly
-installed apps. Removing and re-adding an app restores its working launcher.
-The native school-mode filter can further restrict this list during school time.
-
-Launcher names, icons, and desktop filenames live with the corresponding app
-in `policy.json` (`label`, `icon`, `desktop`). Game entries keep launching through
-the existing time-control helper. Original user desktop entries are backed up
-under `~/.local/share/omarchy-kids/launcher-backups`. Parent sessions retain their
-normal launcher. Run `sudo omarchy-kids-apply-allowlist` to force a refresh.
-
-The update adds a small adapter to native `AppLibrary.qml` and restarts the shell
-to load it; running games remain open. Reapply the upgrade if an Omarchy update
-replaces that file. Unsupported versions are rejected by the preflight check.
-
-Tests: `python3 -m unittest discover -s tests -v`. For real widget tests, install
-Tk, Pillow and Xvfb, then run
-`OK_EXTRAS_UI_TEST=1 xvfb-run -a python3 -m unittest discover -s tests -v`.
-
-## Retro games
-
-The upgrade installs RetroArch, Genesis Plus GX for Sega Mega Drive/Genesis,
-Nestopia for NES, and a **Retro Games** menu entry. All emulated games share
-`retro_daily_minutes` (default 30), with the same schedule and parent extension UI.
-Existing Digger, Micropolis and video allowances remain separate.
-
-Commercial ROMs are supplied separately. As `parent`, import an extracted file:
-
-```sh
-omarchy-kids-import-rom lion_king '/path/to/Lion King.md'
-omarchy-kids-import-rom aladdin '/path/to/Aladdin.md'
-omarchy-kids-import-rom super_mario_bros '/path/to/Super Mario Bros.nes'
-omarchy-kids-import-rom theme_park '/path/to/Theme Park.md'
+```json
+{
+  "budgets": {
+    "creative": {"label": "Creative time", "daily_minutes": 45}
+  },
+  "apps": {
+    "drawing": {
+      "label": "Drawing",
+      "argv": ["/usr/bin/tuxpaint"],
+      "desktop": "tuxpaint.desktop",
+      "icon": "tuxpaint",
+      "category": "creativity",
+      "budget": "creative",
+      "schedule": true,
+      "match": {
+        "process": [{"executables": ["tuxpaint"]}],
+        "windows": ["tuxpaint"]
+      }
+    }
+  }
+}
 ```
 
-The Sega games accept `.md`, `.gen`, `.bin` and `.smd`; Super Mario Bros. accepts
-an iNES/NES 2.0 `.nes` file. The importer keeps the source file, refuses overwrites,
-and adds the game to the **Retro Games** playlist with the correct emulator core.
-The library lives in `/srv/kids-media/roms`, owned by `parent` and readable by the
-child. It contains no bundled commercial ROMs.
+Add its ID to `/etc/omarchy-kids/allowlist.json`:
 
-Open **Retro Games**, select its playlist, then a game and **Run**. Arrow keys move;
-`Z`/`X` are NES B/A; `A`/`Z`/`X` are Sega A/B/C; Enter is Start. F1 opens the
-emulator menu and Escape exits. Autosave states resume on the next launch; saves
-stay in the child's `~/.local/share/retroarch`. Play starts in a window.
+```json
+{"schema_version": 2, "creativity": ["drawing"], "tools": ["screentime"]}
+```
+
+App IDs and allowance IDs are independent. Allow-list groups are arbitrary organizational labels. Empty lists stay empty. An installed app is not permitted until its ID is listed. Install applications separately or explicitly choose an extension.
+
+Process rules use `names` (process names), `executables` (absolute paths or executable basenames), and optional `command_contains` markers. Names and executables are alternatives; command markers further constrain a rule. Multiple rules are alternatives. For launchers such as Java, match the actual runtime and a distinctive command marker. Processes started through the controlled launcher also inherit their app's root-owned cgroup, so child processes retain the same allowance. Ambiguous process matches fail instead of silently choosing a budget.
+
+Window markers are case-insensitive substrings of the window class/title. Choose distinctive markers. New apps use the same registry for launch permissions, window matching, launchers, budget accounting and UI—no source-code app list needs editing.
+
+Optional app properties:
+
+- `env`: application environment variables, passed after dropping root privileges.
+- `window`: `{ "width": 640, "height": 400, "scale": 2 }` for a configured floating window size, clamped to the monitor.
+- `desktop_categories`: freedesktop category names, default `["Utility"]`.
+- `budget: null`: unlimited daily app use; the allow-list and desktop schedule still apply.
+- A budget's `daily_minutes: null`: unlimited group with usage reporting.
+
+Configuration and allow-list changes are watched live. Invalid definitions are rejected. To apply explicitly and restart the policy service:
+
+```sh
+sudo omarchy-kids-reload
+```
+
+Changing the managed account or network policy requires running setup/upgrade, because these also affect system rules. Never point another child's policy at the same service/state directory.
+
+## Schedules and time grants
+
+Omarchy's native desktop schedule remains authoritative. The optional `play_windows` map can further restrict app hours; fresh defaults (`00:00`–`00:00`) add no restriction. Legacy installations keep their existing windows. To use only bedtime at the overall level, configure the native daily allowance to 24 hours; the per-app limits remain separate.
+
+Bedtime blocks apps without recording unused allowance as time spent. Apps with no daily limit still respect bedtime. Parent approvals close the controls and return focus to the app when it is permitted to resume.
+
+```sh
+sudo omarchy-kids-grant --budget creative --minutes 15 --with-desktop
+sudo omarchy-kids-grant --budget creative --minutes 15 --after-bedtime
+sudo omarchy-kids-grant --schedule-only --minutes 15 --after-bedtime
+```
+
+Ordinary grants preserve bedtime and ensure enough overall desktop time for the requested interval. Only the explicit `--after-bedtime` action changes allowed hours temporarily. The schedule-only form adds no app allowance. Parent grants support 1–60 minutes per request; repeated request IDs are idempotent.
+
+The child may request one free minute per day through a dedicated restricted helper. It cannot override bedtime or execute an ordinary parent grant.
+
+## Optional extensions
+
+```sh
+omarchy-kids-extension list
+sudo omarchy-kids-extension install digger
+```
+
+Installation explicitly enables that extension's apps and adds missing default definitions. Existing definitions and limits are kept. Remove app IDs from the allow-list to disable their use; the core does not uninstall their packages or delete saved data.
+
+Available integrations: `digger`, `micropolis`, `retro`, `offline-video`, `minecraft`, and `stardew-valley`. The last two register software installed separately; they do not download commercial games. Their launch commands can be configured before enabling them.
+
+RetroArch's extension imports arbitrary parent-supplied titles. Core mappings live in `/etc/omarchy-kids/extensions/retro.json`; player preferences live in `/etc/omarchy-kids/retroarch.cfg`.
+
+```sh
+omarchy-kids-import-rom my_game /path/to/game.nes --title 'My Game'
+omarchy-kids-import-rom another_game /path/to/game.bin --core genesis_plus_gx
+```
+
+The offline-video extension owns `omarchy-kids-download` and `omarchy-kids-publish`. Media remains parent-owned under `/srv/kids-media`; no videos, ROMs, installers, or family libraries are included in this repository.
+
+## Compatibility and verification
+
+Omarchy integration currently uses guarded adapters for its native screen-time service and launcher QML. Unsupported layouts fail preflight. Reapply an update if Omarchy replaces those files. The native school-mode allow-list can further restrict what the core allows.
+
+Before upgrading, a read-only on-device migration check is available:
+
+```sh
+python3 packaging/check_migration.py
+```
+
+It checks local account, app, schedule, allowance, usage and grant preservation and prints only results. It does not export household records.
+
+Run tests with:
+
+```sh
+python3 -m unittest discover -s tests -v
+OK_EXTRAS_UI_TEST=1 xvfb-run -a python3 -m unittest discover -s tests -v
+```
+
+The second form requires Tk, Pillow, Xvfb and Xauth. Linux GIO and Node enable desktop-entry and QML JavaScript checks. Tests include arbitrary apps/groups, unlimited use, legacy migration, parent approval, launcher synchronization and real Tk controls.

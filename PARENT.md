@@ -1,44 +1,20 @@
-# Parent configuration
+# Configure your family's parental controls
 
-Log in as **parent** (not the kid). That account has internet. AI tools and a browser work there.
+All household settings live on the child computer, outside this repository:
 
-Edit these files, then apply:
+| File | Purpose |
+| --- | --- |
+| `/etc/omarchy-kids/policy.json` | Selected account, app registry, allowance groups, optional app hours, network mode |
+| `/etc/omarchy-kids/allowlist.json` | Which configured apps may run and appear in the launcher |
+| `/etc/omarchy-kids/extensions/` | Optional extension configuration |
+| `/var/lib/omarchy-kids/` | Private installation state, grants, usage and configuration backups |
 
-```sh
-sudo omarchy-kids-reload
-```
+Native Omarchy's parent controls own the computer's overall allowance and bedtime. Set the overall allowance to 24 hours if you want only bedtime there; app allowances continue independently.
 
-## Allow-list
+Open **Screen Time** to see enabled apps and add time. Successful approval closes the window and returns focus to the app. Outside allowed hours, the explicitly labeled bedtime exception requires parent authentication.
 
-`/etc/omarchy-kids/allowlist.json` — **allow-list, default deny.** Anything not listed is not enabled for the kid (hidden and closed). This is the whole-session rule, not only school hours.
+To add software, install it independently or select an optional extension, define its command and matching rules in `policy.json`, assign an allowance group (or `null` for unlimited), then list its ID in `allowlist.json`. See [README.md](README.md) for a complete example. Games are optional integrations, not part of the parental-control core.
 
-```json
-{
-  "games": ["digger", "minecraft", "stardew_valley"],
-  "videos": ["vlc"],
-  "tools": ["screentime"]
-}
-```
+`sudo omarchy-kids-reload` validates and applies app configuration. Invalid configuration is rejected. Existing usage and grants survive reloads and upgrades.
 
-Known ids: `digger`, `minecraft`, `stardew_valley`, `vlc`, `screentime`.
-
-## Time limits
-
-`/etc/omarchy-kids/policy.json`
-
-- `shared_daily_minutes` — Minecraft + Stardew
-- `digger_daily_minutes`
-- `vlc_daily_minutes` — videos, separate category
-- `extra_minute_tiers` — parent extra-time buttons, default `[15, 30, 60]`
-- `play_windows` — weekday/weekend
-
-An AI can edit these JSON files; reload after saving.
-
-## Versioning
-
-Each file has `schema_version`. Reload migrates old files and keeps copies in `/var/lib/omarchy-kids/config-history/` (`policy-v3-20260906T082421.json`, etc.). Last 30 of each kind are kept.
-
-```sh
-sudo omarchy-kids-config-history
-sudo omarchy-kids-config-history allowlist
-```
+Parent-approved changes are backed up under `/var/lib/omarchy-kids/config-history/`. List them with `sudo omarchy-kids-config-history`. Keep machine addresses, real child names, personal libraries and passwords out of shared source control. The ignored `private/` and `*.local.json` paths are available for local development notes; deployment configuration belongs under `/etc/omarchy-kids/`.

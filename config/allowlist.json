@@ -1,6 +1,1 @@
-{
-  "schema_version": 1,
-  "games": ["digger", "minecraft", "stardew_valley"],
-  "videos": ["vlc"],
-  "tools": ["screentime"]
-}
+{"schema_version": 2, "apps": [], "tools": ["screentime"]}

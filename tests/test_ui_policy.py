@@ -6,8 +6,9 @@ import unittest
 from unittest.mock import patch
 
 from kids_policy.budget import Policy, empty_day
-from kids_policy.migrate import default_config
-from kids_policy.presentation import app_view, fresh, window_app
+from tests.fixtures import default_config
+from kids_policy.presentation import app_view, fresh
+from tests.fixtures import window_app
 from kids_policy.service import Daemon
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -53,7 +54,7 @@ class AllowanceTests(unittest.TestCase):
         self.assertFalse(self.daemon.policy.state['free_minute_used'])
 
     def test_ui_uses_authoritative_app_refusal(self):
-        state = {'digger_remaining_seconds': 300, 'app_status': {'digger': {'blocked': True, 'reason': 'Too early'}}}
+        state = {'app_definitions': default_config()['apps'], 'budgets': {'digger': {'remaining_seconds': 300}}, 'app_status': {'digger': {'blocked': True, 'reason': 'Too early'}}}
         view = app_view(state, 'digger')
         self.assertTrue(view['blocked'])
         self.assertEqual(view['remaining'], 300)

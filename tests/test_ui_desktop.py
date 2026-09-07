@@ -30,6 +30,9 @@ class DesktopTests(unittest.TestCase):
                       'extra_minute_tiers': [15, 30, 60], 'play_windows': {},
                       'app_status': {'digger': {'blocked': True, 'reason': 'Digger daily limit reached', 'code': 'limit'},
                                      'vlc': {'blocked': False, 'reason': '', 'code': ''}}}
+        from tests.fixtures import default_config
+        self.state['app_definitions'] = default_config()['apps']
+        self.state['budgets'] = {'digger': {'remaining_seconds': 0}, 'shared': {'remaining_seconds': 3600}, 'vlc': {'remaining_seconds': 1200}}
         self.statefile = self.path / 'usage.json'
         self.statefile.write_text(json.dumps(self.state))
         self.patch(ui, 'USAGE', self.statefile)
@@ -52,6 +55,26 @@ class DesktopTests(unittest.TestCase):
         preview = self.path / 'digger.png'
         Image.new('RGB', (1350, 900), '#00a050').save(preview)
         self.capture = self.patch(self.desktop, 'capture', return_value=preview)
+
+    def test_custom_unlimited_app_has_schedule_only_parent_controls(self):
+        from tests.test_registry import custom_config
+        from kids_policy.budget import Policy, empty_day
+        now = dt.datetime.now()
+        self.state = Policy(empty_day(str(now.date())), custom_config(), now, 0).snapshot(now)
+        self.state.update(updated_at=now.isoformat(), enabled_apps=['reading'],
+                          desktop={'phase': 'bedtime', 'remaining_seconds': 5000},
+                          app_status={'reading': {'blocked': True, 'reason': 'Bedtime', 'code': 'desktop_bedtime'}})
+        self.desktop.state = self.state
+        self.desktop.show_dashboard('reading')
+        self.statefile.write_text(json.dumps(self.state))
+        self.root.update()
+        with patch.object(self.desktop, 'background') as background:
+            self.desktop.grant('reading', 15, after_bedtime=True)
+            command = background.call_args.args[0]
+            self.assertIn('--schedule-only', command)
+            self.assertIn('--after-bedtime', command)
+            self.assertNotIn('--budget', command)
+            self.assertEqual(command[0], 'pkexec')
 
     def patch(self, obj, name, *args, **kwargs):
         p = patch.object(obj, name, *args, **kwargs)
@@ -109,7 +132,9 @@ class DesktopTests(unittest.TestCase):
         commands = []
         self.desktop.background = lambda command, callback: commands.append(command)
         self.desktop.grant('digger', 15)
-        self.assertEqual(commands[0][:5], ['pkexec', '/usr/bin/omarchy-kids-grant', '--budget', 'digger', '--minutes'])
+        self.assertEqual(commands[0][:2], ['pkexec', '/usr/bin/omarchy-kids-grant'])
+        self.assertEqual(commands[0][commands[0].index('--budget') + 1], 'digger')
+        self.assertEqual(commands[0][commands[0].index('--minutes') + 1], '15')
         self.assertNotIn('all', commands[0])
         self.assertTrue(self.desktop.busy)
 
@@ -117,7 +142,7 @@ class DesktopTests(unittest.TestCase):
         commands = []
         self.desktop.background = lambda command, callback: commands.append(command)
         self.desktop.grant('vlc')
-        self.assertEqual(commands[0], ['sudo', '-n', '/usr/bin/omarchy-kids-grant', '--free-minute', '--budget', 'vlc'])
+        self.assertEqual(commands[0], ['sudo', '-n', '/usr/bin/omarchy-kids-free-minute', 'vlc'])
 
     def test_bedtime_buttons_are_explicit_and_require_parent_authentication(self):
         self.state['desktop'] = {'phase': 'bedtime', 'remaining_seconds': 2100,
@@ -157,7 +182,7 @@ class DesktopTests(unittest.TestCase):
         self.desktop.show_blocked('digger')
         def grant(command, callback):
             self.state['app_status']['digger']['blocked'] = False
-            self.state['digger_remaining_seconds'] = 900
+            self.state['budgets']['digger']['remaining_seconds'] = 900
             self.statefile.write_text(json.dumps(self.state))
             callback(subprocess.CompletedProcess(command, 0, '', ''))
         self.desktop.background = grant
@@ -202,7 +227,7 @@ class DesktopTests(unittest.TestCase):
     def test_non_budget_launch_error_does_not_loop_or_disappear(self):
         self.windows.return_value = []
         self.state['app_status']['digger']['blocked'] = False
-        self.state['digger_remaining_seconds'] = 100
+        self.state['budgets']['digger']['remaining_seconds'] = 100
         self.statefile.write_text(json.dumps(self.state))
         self.desktop.state = self.state
         self.desktop.show_blocked('digger', 'Digger is not installed', retry=True)

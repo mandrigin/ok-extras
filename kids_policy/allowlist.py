@@ -1,17 +1,5 @@
 from pathlib import Path
 
-DEFAULT_ALLOWLIST = ('digger', 'minecraft', 'stardew_valley', 'vlc', 'screentime')
-
-ALLOWED_WINDOW = {
-    'digger': ('digger', 'd i g g e r'),
-    'micropolis': ('micropolis',),
-    'retro': ('retroarch',),
-    'minecraft': ('minecraft', 'prismlauncher', 'org.prismlauncher'),
-    'stardew_valley': ('stardew', 'steam_app_413150'),
-    'vlc': ('vlc', 'kids videos'),
-    'screentime': ('omarchy kids', 'omarchy-kids-screentime', 'omarchy-kids-hud', 'omarchy-kids-block'),
-}
-
 SESSION_MARKERS = (
     'hyprland', 'quickshell', 'omarchy-shell', 'omarchy-menu',
     'xdg-desktop-portal', 'pipewire', 'wireplumber', 'dbus-daemon',
@@ -35,7 +23,7 @@ def enabled_ids(config):
         return tuple(ids)
     if isinstance(listed, (list, tuple)):
         return tuple(listed)
-    return DEFAULT_ALLOWLIST
+    return ()
 
 
 def allowed_desktop_names(config):
@@ -53,7 +41,7 @@ def is_allowed_window(config, title='', class_name='', executable='', command=''
     if is_session(title, class_name, executable, command):
         return True
     for app_id in enabled_ids(config):
-        for marker in ALLOWED_WINDOW.get(app_id, ()):
+        for marker in config.get('apps', {}).get(app_id, {}).get('match', {}).get('windows', ()):
             if marker in blob:
                 return True
     return False

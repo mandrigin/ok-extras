@@ -1,0 +1,19 @@
+{
+  "cores": {
+    "genesis_plus_gx": {
+      "label": "Genesis Plus GX",
+      "extensions": [
+        ".md",
+        ".gen",
+        ".bin",
+        ".smd"
+      ]
+    },
+    "nestopia": {
+      "label": "Nestopia",
+      "extensions": [
+        ".nes"
+      ]
+    }
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "id": "micropolis",
+  "description": "Micropolis",
+  "apps": {
+    "micropolis": {
+      "desktop": "micropolis.desktop",
+      "icon": "applications-games",
+      "label": "Micropolis",
+      "budget": "micropolis",
+      "schedule": true,
+      "argv": [
+        "/usr/local/bin/micropolis"
+      ],
+      "match": {
+        "process": [
+          {
+            "names": [
+              "micropolis"
+            ],
+            "executables": [
+              "micropolis"
+            ]
+          },
+          {
+            "names": [
+              "java",
+              "javaw"
+            ],
+            "executables": [
+              "java",
+              "javaw"
+            ],
+            "command_contains": [
+              "micropolis"
+            ]
+          }
+        ],
+        "windows": [
+          "micropolis"
+        ]
+      },
+      "category": "games",
+      "env": {
+        "JAVA_TOOL_OPTIONS": "-Dsun.java2d.uiScale=1.5"
+      }
+    }
+  },
+  "budgets": {
+    "micropolis": {
+      "label": "Micropolis",
+      "daily_minutes": 30
+    }
+  }
+}

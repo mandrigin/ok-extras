@@ -3,7 +3,8 @@ import unittest
 from kids_policy.allowlist import is_allowed_window, is_session
 
 
-CONFIG = {'allowlist': {'games': ['digger', 'minecraft', 'stardew_valley'], 'videos': ['vlc'], 'tools': ['screentime']}}
+from tests.fixtures import default_config
+CONFIG = default_config()
 
 
 class AllowlistTests(unittest.TestCase):

@@ -1,0 +1,43 @@
+{
+  "id": "offline-video",
+  "description": "Kids Videos",
+  "apps": {
+    "vlc": {
+      "desktop": "kids-videos.desktop",
+      "icon": "video-x-generic",
+      "label": "Kids Videos",
+      "budget": "vlc",
+      "schedule": true,
+      "argv": [
+        "/usr/bin/vlc",
+        "--no-network",
+        "/srv/kids-media/videos/kids-videos.m3u"
+      ],
+      "match": {
+        "process": [
+          {
+            "names": [
+              "vlc",
+              "vlc-wrapper"
+            ],
+            "executables": [
+              "vlc",
+              "vlc-wrapper"
+            ]
+          }
+        ],
+        "windows": [
+          "vlc",
+          "kids videos"
+        ]
+      },
+      "category": "videos"
+    }
+  },
+  "budgets": {
+    "vlc": {
+      "label": "Videos",
+      "daily_minutes": 60
+    }
+  }
+}

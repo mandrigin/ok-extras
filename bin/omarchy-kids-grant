@@ -15,8 +15,9 @@ from kids_policy.store import read_json
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--minutes', type=float)
-    parser.add_argument('--budget', choices=('shared', 'digger', 'vlc', 'micropolis', 'retro', 'all'), default='all')
+    parser.add_argument('--budget', help='Configured budget ID (or all for a legacy raw grant)')
     parser.add_argument('--until')
+    parser.add_argument('--schedule-only', action='store_true')
     parser.add_argument('--id')
     parser.add_argument('--revoke')
     parser.add_argument('--free-minute', action='store_true')
@@ -26,6 +27,12 @@ def main():
     if os.geteuid() != 0:
         sys.stderr.write('parent authentication required\n')
         sys.exit(1)
+    if args.schedule_only and (not args.after_bedtime or args.budget or args.free_minute or args.until or args.revoke):
+        parser.error('--schedule-only requires --after-bedtime and no app budget')
+    if not args.budget and not args.schedule_only and not args.revoke:
+        parser.error('choose --budget BUDGET_ID or --schedule-only --after-bedtime')
+    if args.until:
+        parser.error('--until is retired; use --schedule-only --after-bedtime --minutes N')
     if args.revoke:
         request({'op': 'revoke', 'id': args.revoke})
         return
@@ -40,19 +47,14 @@ def main():
     grant_id = args.id or str(uuid.uuid4())
     today = str(dt.date.today())
     created = dt.datetime.now().isoformat(timespec='seconds')
-    if args.until:
+    if args.minutes:
         grant = {
-            'id': grant_id, 'kind': 'until', 'until': args.until, 'date': today,
-            'child_uid': uid, 'approver': approver, 'created_at': created,
-        }
-    elif args.minutes:
-        grant = {
-            'id': grant_id, 'kind': 'minutes', 'minutes': args.minutes, 'budget': args.budget,
+            'id': grant_id, 'kind': 'schedule' if args.schedule_only else 'minutes', 'minutes': args.minutes, 'budget': args.budget,
             'date': today, 'child_uid': uid, 'approver': approver, 'created_at': created,
         }
     else:
-        parser.error('need --minutes, --until, or --revoke')
-    reply = request({'op': 'play_grant' if args.with_desktop or args.after_bedtime else 'grant',
+        parser.error('need --minutes or --revoke')
+    reply = request({'op': 'schedule_grant' if args.schedule_only else ('play_grant' if args.with_desktop or args.after_bedtime else 'grant'),
                      'grant': grant, 'after_bedtime': args.after_bedtime})
     print(reply['grant']['id'])
 

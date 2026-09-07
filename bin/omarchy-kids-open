@@ -2,9 +2,10 @@
 """Open an app through its allowance controls, including visible refusals."""
 import sys
 sys.path.insert(0, '/opt/omarchy-kids-policy')
-from kids_policy.presentation import APPS
+from kids_policy.registry import identifier
 from kids_policy.ui_client import send
 
-if len(sys.argv) != 2 or sys.argv[1] not in APPS:
-    sys.exit('Usage: omarchy-kids-open <digger|micropolis|retro|minecraft|stardew_valley|vlc>')
+if len(sys.argv) != 2:
+    sys.exit('Usage: omarchy-kids-open APP_ID')
+identifier(sys.argv[1])
 sys.exit(0 if send({'op': 'launch', 'app': sys.argv[1]}) else 1)

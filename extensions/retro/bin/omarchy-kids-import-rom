@@ -1,0 +1,15 @@
+#!/usr/bin/python3
+import argparse
+import sys
+sys.path.insert(0, '/opt/omarchy-kids-policy/extensions/retro')
+from retro import import_rom
+parser = argparse.ArgumentParser(description='Import a parent-supplied ROM into the configured retro library')
+parser.add_argument('game_id')
+parser.add_argument('file')
+parser.add_argument('--core')
+parser.add_argument('--title')
+args = parser.parse_args()
+try:
+    print(import_rom(args.game_id, args.file, core=args.core, title=args.title))
+except (ValueError, OSError) as error:
+    raise SystemExit(str(error))

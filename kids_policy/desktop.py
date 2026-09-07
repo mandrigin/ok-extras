@@ -35,7 +35,7 @@ def status(uid):
         # Publish only what the app controls need, without quiz/history details.
         return {key: reply.get(key) for key in (
             'phase', 'remaining_seconds', 'blocked_label', 'locked',
-            'extension_supported', 'extension_until', 'lock_in_seconds')}
+            'extension_supported', 'extension_until', 'lock_in_seconds', 'budget_minutes')}
     except (OSError, ValueError, TypeError, KeyError) as exc:
         return {'error': 'Desktop time status unavailable: ' + str(exc)}
 

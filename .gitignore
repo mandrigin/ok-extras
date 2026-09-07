@@ -3,3 +3,8 @@ __pycache__/
 .pytest_cache/
 .venv/
 .parent-password
+# Machine and family configuration belongs outside source control.
+private/
+*.local.json
+*.local.env
+.household/

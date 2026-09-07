@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Io
 import qs.Ui
 import qs.Commons
+import "Allowances.js" as Allowances
 
 BarWidget {
   id: root
@@ -11,26 +12,7 @@ BarWidget {
   property var allowlist: ({})
   property double now: Date.now()
   readonly property bool stale: !usage.updated_at || now - Date.parse(usage.updated_at) > 15000
-  readonly property var definitions: [
-    { app: "digger", title: "Digger", key: "digger_remaining_seconds" },
-    { app: "micropolis", title: "Micropolis", key: "micropolis_remaining_seconds" },
-    { app: "retro", title: "Retro", key: "retro_remaining_seconds" },
-    { app: "minecraft", title: "Games", key: "remaining_seconds" },
-    { app: "stardew_valley", title: "Games", key: "remaining_seconds" },
-    { app: "vlc", title: "Videos", key: "vlc_remaining_seconds" }
-  ]
-  readonly property var entries: {
-    var enabled = usage.enabled_apps || (allowlist.games || []).concat(allowlist.videos || [])
-    var seenGames = false
-    return definitions.filter(function(entry) {
-      if (enabled.indexOf(entry.app) < 0) return false
-      if (entry.title === "Games") {
-        if (seenGames) return false
-        seenGames = true
-      }
-      return true
-    })
-  }
+  readonly property var entries: Allowances.entries(usage)
   implicitWidth: vertical ? barSize : row.implicitWidth + 12
   implicitHeight: vertical ? row.implicitHeight : barSize
 
@@ -38,6 +20,7 @@ BarWidget {
     try { return JSON.parse(raw) } catch (e) { return {} }
   }
   function timeLabel(seconds) {
+    if (seconds === null) return "∞"
     var s = Math.max(0, Math.floor(Number(seconds) || 0))
     return Math.floor(s / 60) + ":" + (s % 60 < 10 ? "0" : "") + s % 60
   }
@@ -71,8 +54,8 @@ BarWidget {
       delegate: Text {
         required property var modelData
         readonly property var status: root.usage.app_status ? root.usage.app_status[modelData.app] : null
-        readonly property bool blocked: status ? status.blocked : Number(root.usage[modelData.key]) <= 0
-        text: modelData.title + " " + (root.stale ? "—" : root.timeLabel(root.usage[modelData.key]))
+        readonly property bool blocked: status ? status.blocked : modelData.remaining !== null && Number(modelData.remaining) <= 0
+        text: modelData.title + " " + (root.stale ? "—" : root.timeLabel(modelData.remaining))
         color: blocked && !root.stale ? "#ff806e" : (root.bar ? root.bar.barForeground : Color.foreground)
         font.family: root.bar ? root.bar.fontFamily : Style.font.family
         font.pixelSize: Style.font.body

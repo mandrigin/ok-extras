@@ -1,6 +1,6 @@
 #!/bin/bash
-# Upgrade an existing installation without rerunning account/network provisioning.
-set -euo pipefail
+# Upgrade controls and regenerate system rules from the existing configuration.
+set -Eeuo pipefail
 if (( EUID != 0 )); then
   echo 'Run: sudo bash upgrade.sh' >&2
   exit 1
@@ -21,8 +21,7 @@ PY
 cd "$SRC"
 python3 packaging/configure_desktop.py --check
 python3 packaging/configure_launcher.py --check
-omarchy-pkg-add tk python-pillow gcc make patch pkgconf sdl2-compat zlib libx11 vlc-plugin-ffmpeg retroarch libretro-genesis-plus-gx libretro-nestopia retroarch-assets-ozone
-command -v java >/dev/null || omarchy-pkg-add jre21-openjdk
+omarchy-pkg-add tk python-pillow
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
 python3 -c 'import tkinter; from PIL import Image, ImageTk'
 
@@ -33,11 +32,56 @@ cp -a /etc/omarchy-kids "$BACKUP/config"
 cp -a /usr/share/omarchy/lib/parent/omarchy_kids/screen_time/service.py "$BACKUP/native-time-service.py"
 cp -a /usr/share/omarchy/shell/services/AppLibrary.qml "$BACKUP/AppLibrary.qml"
 cp -a /usr/share/omarchy/shell/plugins/menu/Menu.qml "$BACKUP/Menu.qml"
-cp -a /etc/sudoers.d/zzz-omarchy-kids-launch "$BACKUP/sudoers"
+[[ ! -f /etc/sudoers.d/zzz-omarchy-kids-launch ]] || cp -a /etc/sudoers.d/zzz-omarchy-kids-launch "$BACKUP/sudoers"
 [[ ! -f $CHILD_HOME/.config/omarchy/shell.json ]] || cp -a "$CHILD_HOME/.config/omarchy/shell.json" "$BACKUP/shell.json"
+install -d "$BACKUP/bin"
+install -d "$BACKUP/lib" "$BACKUP/systemd"
+for file in /usr/lib/omarchy-kids/*; do
+  [[ ! -f $file ]] || cp -a "$file" "$BACKUP/lib/"
+done
+for file in /etc/systemd/system/omarchy-kids-*.service; do
+  [[ ! -f $file ]] || cp -a "$file" "$BACKUP/systemd/"
+done
+[[ ! -f /usr/share/polkit-1/actions/com.omarchy.kids.policy ]] || cp -a /usr/share/polkit-1/actions/com.omarchy.kids.policy "$BACKUP/polkit"
+[[ ! -f $CHILD_HOME/.config/systemd/user/omarchy-kids-hud.service ]] || cp -a "$CHILD_HOME/.config/systemd/user/omarchy-kids-hud.service" "$BACKUP/user-hud.service"
+for file in /usr/bin/omarchy-kids-*; do
+  [[ ! -f $file ]] || cp -a "$file" "$BACKUP/bin/"
+done
+for name in state.json usage.json launcher.json; do
+  [[ ! -f /var/lib/omarchy-kids/$name ]] || cp -a "/var/lib/omarchy-kids/$name" "$BACKUP/$name"
+done
+ROLLBACK_READY=0
+rollback() {
+  result=$?
+  trap - ERR
+  set +e
+  if (( ROLLBACK_READY )); then
+    systemctl stop omarchy-kids-policy.service
+    cp -a "$BACKUP/code/." /opt/omarchy-kids-policy/
+    cp -a "$BACKUP/config/." /etc/omarchy-kids/
+    cp -a "$BACKUP/bin/." /usr/bin/
+    cp -a "$BACKUP/lib/." /usr/lib/omarchy-kids/
+    cp -a "$BACKUP/systemd/." /etc/systemd/system/
+    [[ ! -f $BACKUP/polkit ]] || cp -a "$BACKUP/polkit" /usr/share/polkit-1/actions/com.omarchy.kids.policy
+    [[ ! -f $BACKUP/user-hud.service ]] || cp -a "$BACKUP/user-hud.service" "$CHILD_HOME/.config/systemd/user/omarchy-kids-hud.service"
+    cp -a "$BACKUP/native-time-service.py" /usr/share/omarchy/lib/parent/omarchy_kids/screen_time/service.py
+    cp -a "$BACKUP/AppLibrary.qml" /usr/share/omarchy/shell/services/AppLibrary.qml
+    cp -a "$BACKUP/Menu.qml" /usr/share/omarchy/shell/plugins/menu/Menu.qml
+    [[ ! -f $BACKUP/sudoers ]] || cp -a "$BACKUP/sudoers" /etc/sudoers.d/zzz-omarchy-kids-launch
+    for name in state.json usage.json launcher.json; do
+      [[ ! -f $BACKUP/$name ]] || cp -a "$BACKUP/$name" "/var/lib/omarchy-kids/$name"
+    done
+    [[ ! -f $BACKUP/shell.json ]] || cp -a "$BACKUP/shell.json" "$CHILD_HOME/.config/omarchy/shell.json"
+    systemctl daemon-reload
+    systemctl restart omarchy-kids-timed.service omarchy-kids-policy.service
+    as_child systemctl --user restart omarchy-kids-hud.service
+    echo "Upgrade failed; previous code and configuration restored. Backup: $BACKUP" >&2
+  fi
+  exit "$result"
+}
+trap rollback ERR
 echo "Backup: $BACKUP"
-bash packaging/install_games.sh
-python3 packaging/configure_retro.py "$CHILD"
+python3 packaging/configure_host.py --check
 
 as_child() {
   runuser -u "$CHILD" -- env OMARCHY_PATH="$OMARCHY_PATH" PATH="$PATH" \
@@ -51,16 +95,14 @@ fi
 as_child systemctl --user stop omarchy-kids-hud.service omarchy-kids-game-time-dashboard.service 2>/dev/null || true
 
 install -d -m 0755 /opt/omarchy-kids-policy
-cp -a kids_policy hud.py viewer.py shell /opt/omarchy-kids-policy/
+ROLLBACK_READY=1
+systemctl stop omarchy-kids-policy.service
+cp -a kids_policy hud.py viewer.py shell packaging extensions /opt/omarchy-kids-policy/
+python3 packaging/configure_host.py
 chown -R root:root /opt/omarchy-kids-policy
 python3 packaging/configure_desktop.py
 python3 packaging/configure_launcher.py
-if ! systemctl restart omarchy-kids-timed.service; then
-  cp -a "$BACKUP/native-time-service.py" /usr/share/omarchy/lib/parent/omarchy_kids/screen_time/service.py
-  systemctl restart omarchy-kids-timed.service
-  echo 'Native time service restored; desktop integration upgrade failed.' >&2
-  exit 1
-fi
+systemctl restart omarchy-kids-timed.service
 python3 - "$CHILD_UID" <<'PY'
 import sys,time
 sys.path.insert(0, '/opt/omarchy-kids-policy')
@@ -76,39 +118,38 @@ PY
 install -m 0755 bin/* /usr/bin/
 install -m 0644 polkit/com.omarchy.kids.policy /usr/share/polkit-1/actions/com.omarchy.kids.policy
 
-SUDO_STAGE=$(mktemp)
-trap 'rm -f "$SUDO_STAGE"' EXIT
-python3 - "$CHILD" > "$SUDO_STAGE" <<'PY'
-import sys
-child=sys.argv[1]
-print(f'{child} ALL=(root) NOPASSWD: /usr/bin/omarchy-kids-launch')
-print(f'{child} ALL=(root) NOPASSWD: /usr/bin/omarchy-kids-grant --free-minute')
-for budget in ('digger','shared','vlc','micropolis','retro'):
-    print(f'{child} ALL=(root) NOPASSWD: /usr/bin/omarchy-kids-grant --free-minute --budget {budget}')
-print('Defaults!/usr/bin/omarchy-kids-launch env_keep += "DISPLAY WAYLAND_DISPLAY XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS HYPRLAND_INSTANCE_SIGNATURE XDG_SESSION_TYPE XDG_CURRENT_DESKTOP LIBGL_ALWAYS_SOFTWARE"')
-print('Defaults:parent !rootpw')
-PY
-visudo -cf "$SUDO_STAGE"
-install -m 0440 "$SUDO_STAGE" /etc/sudoers.d/zzz-omarchy-kids-launch
+# Compatibility commands are extension-owned; update existing integrations only.
+python3 packaging/refresh_extensions.py
+install -m 0755 lib/* /usr/lib/omarchy-kids/
+install -m 0644 systemd/*.service /etc/systemd/system/
+systemctl daemon-reload
+python3 packaging/activate_network.py
 
 install -d -o "$CHILD_UID" -g "$CHILD_GID" "$CHILD_HOME/.local/share/applications" "$CHILD_HOME/.config/systemd/user"
-# The allow-list reconciler generates the child's app launchers from policy.json.
-install -d -m 0755 /usr/local/share/applications
-install -m 0644 desktop/digger.desktop desktop/kids-videos.desktop desktop/micropolis.desktop /usr/local/share/applications/
 install -m 0644 -o "$CHILD_UID" -g "$CHILD_GID" user-systemd/omarchy-kids-hud.service "$CHILD_HOME/.config/systemd/user/omarchy-kids-hud.service"
 python3 packaging/configure_ui.py "$CHILD"
+systemctl enable omarchy-kids-cgroup.service omarchy-kids-policy.service
 /usr/bin/omarchy-kids-reload
-as_child systemctl --user daemon-reload
-as_child systemctl --user enable --now omarchy-kids-hud.service
-as_child omarchy-shell shell reloadConfig
-as_child omarchy-restart-shell
+if [[ -S /run/user/$CHILD_UID/bus ]]; then
+  as_child systemctl --user daemon-reload
+  as_child systemctl --user enable --now omarchy-kids-hud.service
+  as_child omarchy-shell shell reloadConfig
+  if ! as_child omarchy-restart-shell; then
+    echo 'Controls updated. Log out/in once the child is finished to refresh the shell.'
+  fi
+  as_child systemctl --user is-active omarchy-kids-hud.service
+else
+  install -d -o "$CHILD_UID" -g "$CHILD_GID" "$CHILD_HOME/.config/systemd/user/default.target.wants"
+  ln -sfn ../omarchy-kids-hud.service "$CHILD_HOME/.config/systemd/user/default.target.wants/omarchy-kids-hud.service"
+  echo 'Controls will start when the child next logs in.'
+fi
 sleep 2
 systemctl is-active omarchy-kids-policy.service
-as_child systemctl --user is-active omarchy-kids-hud.service
 python3 - <<'PY'
 import json
 state=json.load(open('/var/lib/omarchy-kids/usage.json'))
-assert 'app_status' in state, 'Policy daemon did not load the new version'
+assert state.get('schema_version') == 3 and 'app_definitions' in state and 'budgets' in state, 'Policy daemon did not load the new version'
 print('App allowances:',state['enabled_apps'])
 PY
-printf '%s\n' 'Upgraded: app controls now show desktop restrictions and offer a parent-approved bedtime extension.'
+trap - ERR
+printf '%s\n' 'Upgraded parental controls: configured apps and budgets preserved; no games installed.'

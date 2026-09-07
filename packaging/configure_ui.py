@@ -31,17 +31,13 @@ def main():
     path = Path(account.pw_dir) / '.config/omarchy/shell.json'
     source = path if path.exists() else Path('/usr/share/omarchy/config/omarchy/shell.json')
     data = configure(json.loads(source.read_text()))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    os.chown(path.parent, account.pw_uid, account.pw_gid)
     stage = path.with_suffix('.kids-ui.tmp')
     stage.write_text(json.dumps(data, indent=2) + '\n')
     os.chown(stage, account.pw_uid, account.pw_gid)
     stage.chmod(0o644)
     stage.replace(path)
-    # A post-map resize is needed for SDL games that reset their initial size.
-    config = Path('/etc/omarchy-kids/policy.json')
-    data = json.loads(config.read_text())
-    data['apps']['digger'].setdefault('window_scale', 4)
-    data.setdefault('micropolis_daily_minutes', 30)
-    config.write_text(json.dumps(data, indent=2) + '\n')
 
 
 if __name__ == '__main__':

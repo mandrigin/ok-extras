@@ -1,35 +1,34 @@
-"""Shared, read-only view of app allowances; never authorizes a launch."""
+"""Read-only UI data derived from published policy definitions."""
 import datetime as dt
+from kids_policy.registry import window_app as match_window
 
-APPS = {
-    'digger': ('Digger', 'digger', 'digger_remaining_seconds'),
-    'micropolis': ('Micropolis', 'micropolis', 'micropolis_remaining_seconds'),
-    'retro': ('Retro games', 'retro', 'retro_remaining_seconds'),
-    'minecraft': ('Minecraft', 'shared', 'remaining_seconds'),
-    'stardew_valley': ('Stardew Valley', 'shared', 'remaining_seconds'),
-    'vlc': ('Videos', 'vlc', 'vlc_remaining_seconds'),
-}
+
+def definitions(state):
+    return {key: spec for key, spec in state.get('app_definitions', {}).items() if not spec.get('control')}
 
 
 def fmt(seconds):
-    seconds = max(0, int(seconds or 0))
+    if seconds is None:
+        return 'Unlimited'
+    seconds = max(0, int(seconds))
     return f'{seconds // 60}:{seconds % 60:02d}'
 
 
 def enabled_apps(config):
-    allow = config.get('allowlist', config)
-    return [app for app in APPS if any(app in allow.get(group, []) for group in ('games', 'videos'))]
+    from kids_policy.allowlist import enabled_ids
+    return [key for key in definitions({'app_definitions': config.get('apps', {})}) if key in enabled_ids(config)]
 
 
 def app_view(state, app):
-    label, budget, field = APPS[app]
-    authoritative = state.get('app_status', {}).get(app)
-    remaining = max(0, float(state.get(field) or 0))
-    if authoritative is not None:
-        return {**authoritative, 'app': app, 'label': label, 'budget': budget, 'remaining': remaining}
-    blocked = remaining <= 0 or not state.get('play_allowed', False)
-    return {'app': app, 'label': label, 'budget': budget, 'remaining': remaining,
-            'blocked': blocked, 'reason': state.get('play_blocked_reason') or f'{label} daily limit reached'}
+    spec = definitions(state).get(app, {})
+    budget = spec.get('budget')
+    record = state.get('budgets', {}).get(budget, {})
+    remaining = record.get('remaining_seconds') if budget else None
+    permission = state.get('app_status', {}).get(app)
+    if permission is None:
+        permission = {'blocked': True, 'reason': 'Waiting for authoritative app permissions', 'code': 'unavailable'}
+    return {**permission, 'app': app, 'label': spec.get('label', app), 'budget': budget,
+            'remaining': remaining, 'unlimited': budget is None or record.get('unlimited', False)}
 
 
 def fresh(state, now=None):
@@ -44,21 +43,8 @@ def fresh(state, now=None):
 def needs_schedule_approval(state, app):
     desktop = state.get('desktop', {})
     return (desktop.get('phase') == 'bedtime' or bool(desktop.get('extension_until'))
-            or (app in APPS and app_view(state, app).get('code') == 'schedule'))
+            or app_view(state, app).get('code') == 'schedule')
 
 
-def window_app(window):
-    blob = f"{window.get('class', '')} {window.get('title', '')}".lower()
-    if 'omarchy' in blob or 'kids-' in blob:
-        return None
-    for app, markers in (
-        ('digger', ('digger', 'd i g g e r')),
-        ('micropolis', ('micropolis',)),
-        ('retro', ('retroarch',)),
-        ('minecraft', ('minecraft', 'prism')),
-        ('stardew_valley', ('stardew', 'steam_app_413150')),
-        ('vlc', ('vlc', 'kids videos')),
-    ):
-        if any(marker in blob for marker in markers):
-            return app
-    return None
+def window_app(window, state):
+    return match_window({'apps': state.get('app_definitions', {})}, window)

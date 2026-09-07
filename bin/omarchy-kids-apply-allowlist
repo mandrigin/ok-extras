@@ -10,7 +10,7 @@ from kids_policy.service import load_config
 
 def main():
     config = load_config()
-    uid = int(config.get('child_uid', 1000))
+    uid = int(config['child_uid'])
     home = Path(pwd.getpwuid(uid).pw_dir)
     account = pwd.getpwuid(uid)
     count = sync(home, config, account.pw_name, (uid, account.pw_gid))

@@ -1,0 +1,44 @@
+{
+  "id": "digger",
+  "description": "Digger",
+  "apps": {
+    "digger": {
+      "desktop": "digger.desktop",
+      "icon": "input-gaming",
+      "label": "Digger",
+      "budget": "digger",
+      "schedule": true,
+      "argv": [
+        "/usr/local/bin/digger"
+      ],
+      "match": {
+        "process": [
+          {
+            "names": [
+              "digger"
+            ],
+            "executables": [
+              "digger"
+            ]
+          }
+        ],
+        "windows": [
+          "digger",
+          "d i g g e r"
+        ]
+      },
+      "category": "games",
+      "window": {
+        "width": 640,
+        "height": 400,
+        "scale": 4
+      }
+    }
+  },
+  "budgets": {
+    "digger": {
+      "label": "Digger",
+      "daily_minutes": 10
+    }
+  }
+}

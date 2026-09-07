@@ -5,7 +5,7 @@ from pathlib import Path
 from kids_policy import ALLOWLIST_SCHEMA, POLICY_SCHEMA
 from kids_policy.migrate import default_config
 from kids_policy.paths import HISTORY
-from kids_policy.store import read_json, write_json
+from kids_policy.store import write_json
 
 
 def backup(path, kind):
@@ -15,7 +15,8 @@ def backup(path, kind):
     HISTORY.mkdir(parents=True, exist_ok=True)
     stamp = dt.datetime.now().strftime('%Y%m%dT%H%M%S')
     try:
-        version = json.loads(path.read_text()).get('schema_version', 0)
+        data = json.loads(path.read_text())
+        version = data.get('schema_version', 0) if isinstance(data, dict) else 0
     except (OSError, json.JSONDecodeError):
         version = 0
     dest = HISTORY / f'{kind}-v{version}-{stamp}{path.suffix}'
@@ -37,42 +38,50 @@ def history(kind=None):
 
 
 def migrate_allowlist(data):
-    original = data
     if data is None:
-        data = {}
+        data = {'apps': [], 'tools': ['screentime']}
+    original = data
     if isinstance(data, list):
-        data = {'games': list(data), 'videos': [], 'tools': []}
-    migrated = {
-        'schema_version': ALLOWLIST_SCHEMA,
-        'games': list(data.get('games') or []),
-        'videos': list(data.get('videos', [])),
-        'tools': list(data.get('tools', [])),
-    }
-    changed = not isinstance(original, dict) or original.get('schema_version') != ALLOWLIST_SCHEMA
-    return migrated, changed
+        data = {'games': data, 'videos': [], 'tools': []}
+    if not isinstance(data, dict):
+        raise ValueError('Allow-list must be an object or list')
+    if int(data.get('schema_version', 0)) > ALLOWLIST_SCHEMA:
+        raise ValueError('Allow-list is newer than this version of parental controls')
+    from kids_policy.registry import identifier
+    migrated = {'schema_version': ALLOWLIST_SCHEMA}
+    for key, group in data.items():
+        if key == 'schema_version':
+            continue
+        if not isinstance(group, list):
+            raise ValueError('Allow-list groups must be lists')
+        migrated[key] = list(dict.fromkeys(identifier(app) for app in group))
+    return migrated, migrated != original
 
 
 def migrate_policy(data, uid=1000):
-    base = default_config(uid)
-    if not data:
-        return base, True
-    changed = int(data.get('schema_version') or 0) < POLICY_SCHEMA
-    merged = dict(base)
-    for key, value in data.items():
-        if key == 'apps' and isinstance(value, dict):
-            merged['apps'] = {**base['apps'], **{
-                app: {**base['apps'].get(app, {}), **spec} for app, spec in value.items()
-            }}
-        elif key != 'schema_version':
-            merged[key] = value
+    from kids_policy.registry import validate
+    original = data
+    if data is None:
+        return validate(default_config(uid)), True
+    if not isinstance(data, dict):
+        raise ValueError('Policy must be an object')
+    if int(data.get('schema_version', 0)) > POLICY_SCHEMA:
+        raise ValueError('Policy is newer than this version of parental controls')
+    if int(data.get('schema_version', 0)) < 4:
+        from kids_policy.legacy import upgrade_policy
+        data = upgrade_policy(data, uid)
+    merged = {**default_config(uid), **data}
     merged['schema_version'] = POLICY_SCHEMA
-    merged.setdefault('vlc_daily_minutes', 60)
-    merged.setdefault('extra_minute_tiers', [15, 30, 60])
-    return merged, changed or merged != data
+    migrated = validate(merged)
+    return migrated, migrated != original
 
 
 def load_or_migrate(path, kind, migrator):
-    current = read_json(path, None)
+    path = Path(path)
+    # A malformed existing file is an error, never a request for fresh defaults.
+    current = json.loads(path.read_text()) if path.exists() else None
+    if path.exists() and current is None:
+        raise ValueError('Existing configuration cannot be null: ' + str(path))
     migrated, changed = migrator(current)
     if changed or current is None:
         if current is not None:

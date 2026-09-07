@@ -1,0 +1,47 @@
+{
+  "id": "minecraft",
+  "description": "Minecraft",
+  "apps": {
+    "minecraft": {
+      "desktop": "minecraft-vm.desktop",
+      "icon": "org.prismlauncher.PrismLauncher",
+      "label": "Minecraft",
+      "budget": "shared",
+      "schedule": true,
+      "argv": [
+        "/usr/local/bin/minecraft-vm"
+      ],
+      "match": {
+        "process": [
+          {
+            "names": [
+              "java",
+              "javaw"
+            ],
+            "executables": [
+              "java",
+              "javaw"
+            ],
+            "command_contains": [
+              "minecraft",
+              "prismlauncher",
+              "multimc"
+            ]
+          }
+        ],
+        "windows": [
+          "minecraft",
+          "prismlauncher",
+          "org.prismlauncher"
+        ]
+      },
+      "category": "games"
+    }
+  },
+  "budgets": {
+    "shared": {
+      "label": "Games",
+      "daily_minutes": 60
+    }
+  }
+}

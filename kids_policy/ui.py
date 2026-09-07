@@ -14,7 +14,7 @@ import uuid
 
 from PIL import Image, ImageEnhance, ImageOps, ImageTk
 from kids_policy.paths import ALLOWLIST, CONFIG, USAGE
-from kids_policy.presentation import APPS, app_view, enabled_apps, fmt, fresh, window_app, needs_schedule_approval
+from kids_policy.presentation import definitions, app_view, enabled_apps, fmt, fresh, window_app, needs_schedule_approval
 from kids_policy.store import read_json
 from kids_policy.ui_client import runtime
 
@@ -53,7 +53,7 @@ class DesktopUI:
         self.pending, self.sized = set(), {w['address']: None for w in clients()}
         self.busy = False
         self.grant_mode = False
-        self.state = {}
+        self.state = read_json(USAGE, {}) or {}
         self.dashboard, self.overlay, self.overlay_app = None, None, None
         self.rows, self.hidden = {}, []
         self.last_free, self.last_capture = None, 0
@@ -76,7 +76,7 @@ class DesktopUI:
         self.jobs.append((self.pool.submit(run), callback))
 
     def launch(self, app):
-        if app not in APPS or app in self.pending:
+        if app not in definitions(self.state) or app in self.pending:
             return
         self.pending.add(app)
 
@@ -93,12 +93,20 @@ class DesktopUI:
     def grant(self, app, minutes=None, after_bedtime=False):
         if self.busy:
             return
-        budget = APPS[app][1]
+        if app not in definitions(self.state):
+            self.show_message('This app is no longer configured.')
+            return
+        budget = definitions(self.state)[app].get('budget')
+        schedule_only = app_view(self.state, app)['unlimited']
+        if schedule_only and (not after_bedtime or minutes is None):
+            self.show_message('This app has no daily limit.')
+            return
         if minutes is None:
-            command = ['sudo', '-n', '/usr/bin/omarchy-kids-grant', '--free-minute', '--budget', budget]
+            command = ['sudo', '-n', '/usr/bin/omarchy-kids-free-minute', budget]
         else:
-            command = ['pkexec', '/usr/bin/omarchy-kids-grant', '--budget', budget,
-                       '--minutes', str(minutes), '--id', str(uuid.uuid4()), '--with-desktop']
+            command = ['pkexec', '/usr/bin/omarchy-kids-grant', '--minutes', str(minutes),
+                       '--id', str(uuid.uuid4()), '--with-desktop']
+            command += ['--schedule-only'] if schedule_only else ['--budget', budget]
             if after_bedtime:
                 command.append('--after-bedtime')
         self.busy = True
@@ -124,7 +132,7 @@ class DesktopUI:
             self.close_dashboard()
         if self.overlay_app == app:
             self.dismiss()
-        matching = [w for w in clients() if window_app(w) == app]
+        matching = [w for w in clients() if window_app(w, self.state) == app]
         if matching:
             window = matching[0]
             dispatch('alter_zorder', window, mode='top')
@@ -148,6 +156,9 @@ class DesktopUI:
             self.dashboard_message.configure(text=message[:300])
 
     def grant_buttons(self, parent, app):
+        if app_view(self.state, app)['unlimited'] and not needs_schedule_approval(self.state, app):
+            ttk.Label(parent, text='No daily app limit. The desktop schedule still applies.').pack()
+            return
         desktop = self.state.get('desktop', {})
         outside = needs_schedule_approval(self.state, app)
         self.grant_mode = outside
@@ -187,22 +198,38 @@ class DesktopUI:
         if self.selected not in apps:
             self.selected = next(iter(apps), None)
         self.rows = {}
+        list_area = ttk.Frame(body)
+        list_area.pack(fill='x', pady=4)
+        canvas = tk.Canvas(list_area, height=min(240, max(60, 48 * len(apps))), background='#222532', highlightthickness=0)
+        scrollbar = ttk.Scrollbar(list_area, orient='vertical', command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.pack(side='left', fill='both', expand=True)
+        app_rows = ttk.Frame(canvas)
+        item = canvas.create_window((0, 0), window=app_rows, anchor='nw')
+        def fit_rows(event):
+            canvas.configure(scrollregion=canvas.bbox('all'), height=min(240, max(60, event.height)))
+            if event.height > 240:
+                scrollbar.pack(side='right', fill='y')
+            else:
+                scrollbar.pack_forget()
+        app_rows.bind('<Configure>', fit_rows)
+        canvas.bind('<Configure>', lambda event: canvas.itemconfigure(item, width=event.width))
         for app in apps:
-            if app not in APPS:
+            if app not in definitions(self.state):
                 continue
-            row = ttk.Frame(body)
+            row = ttk.Frame(app_rows)
             row.pack(fill='x', pady=6)
             label = ttk.Label(row, font=('sans', 16, 'bold'))
             label.pack(side='left')
             self.rows[app] = label
-            ttk.Button(row, text='Extra time', command=lambda a=app: self.show_dashboard(a)).pack(side='right')
+            ttk.Button(row, text='Controls' if app_view(self.state, app)['unlimited'] else 'Extra time', command=lambda a=app: self.show_dashboard(a)).pack(side='right')
         self.schedule_label = ttk.Label(body, wraplength=570)
         self.schedule_label.pack(anchor='w', pady=12)
-        if self.selected in APPS:
-            group = ttk.LabelFrame(body, text=APPS[self.selected][0], padding=12)
+        if self.selected in definitions(self.state):
+            group = ttk.LabelFrame(body, text=definitions(self.state)[self.selected]['label'], padding=12)
             group.pack(fill='x', pady=8)
             self.grant_buttons(group, self.selected)
-            ttk.Button(group, text='Open ' + APPS[self.selected][0], command=lambda: self.launch(self.selected)).pack(pady=6)
+            ttk.Button(group, text='Open ' + definitions(self.state)[self.selected]['label'], command=lambda: self.launch(self.selected)).pack(pady=6)
         self.dashboard_message = ttk.Label(body, wraplength=570)
         self.dashboard_message.pack(pady=10)
         self.update_dashboard()
@@ -231,13 +258,20 @@ class DesktopUI:
                                        if desktop.get('phase') == 'bedtime' else '')
         if desktop.get('extension_until'):
             note = 'Parent approved play until ' + time.strftime('%H:%M', time.localtime(desktop['extension_until']))
-        self.desktop_label.configure(text=(f'Desktop: {fmt(left)} remaining. ' if left is not None else '') + note)
+        budgets = desktop.get('budget_minutes', {})
+        unlimited = len(budgets) == 7 and all(value == 1440 for value in budgets.values())
+        caption = 'Desktop: unlimited within allowed hours. ' if unlimited else (f'Desktop: {fmt(left)} remaining. ' if left is not None else '')
+        self.desktop_label.configure(text=caption + note)
         for app, row in self.rows.items():
             view = app_view(self.state, app)
             row.configure(text=f"{view['label']}: {fmt(view['remaining'])}" + (' · blocked' if view['blocked'] else ''))
         windows = self.state.get('play_windows', (read_json(CONFIG, {}) or {}).get('play_windows', {}))
-        self.schedule_label.configure(text='\n'.join(f"{'Weekdays' if key == 'weekday' else 'Weekends'}: {value['start']}–{value['end']}"
-                                                       for key, value in windows.items()))
+        if windows and all(value['start'] == value['end'] for value in windows.values()):
+            schedule = 'Apps follow the desktop schedule.'
+        else:
+            schedule = '\n'.join(f"{'Weekday' if key == 'weekday' else 'Weekend'} app hours: {value['start']}–{value['end']}"
+                                 for key, value in windows.items())
+        self.schedule_label.configure(text=schedule)
         if not fresh(self.state):
             self.dashboard_message.configure(text='Waiting for the time service. Displayed allowances may be out of date.')
 
@@ -266,7 +300,7 @@ class DesktopUI:
         self.overlay_app, self.retry = app, retry
         view = app_view(self.state, app)
         self.waiting_for_allowance = view['blocked']
-        matching = [w for w in clients() if window_app(w) == app and w.get('at', [8000])[0] < 4000]
+        matching = [w for w in clients() if window_app(w, self.state) == app and w.get('at', [8000])[0] < 4000]
         source = matching[0] if matching else None
         path = self.capture(app, source) if source else self.cache / (app + '.png')
         width, height = source['size'] if source else (900, 650)
@@ -340,7 +374,9 @@ class DesktopUI:
         live = {w['address'] for w in windows}
         self.sized = {address: stamp for address, stamp in self.sized.items() if address in live}
         for window in windows:
-            if window_app(window) != 'digger':
+            app = window_app(window, self.state)
+            geometry = definitions(self.state).get(app, {}).get('window')
+            if not geometry:
                 continue
             first = self.sized.setdefault(window['address'], time.monotonic())
             if first is None or time.monotonic() - first < 2 or window.get('fullscreen'):
@@ -349,18 +385,18 @@ class DesktopUI:
                 monitors = json.loads(hypr('-j', 'monitors'))
                 monitor = next(m for m in monitors if m['id'] == window['monitor'])
                 scale = float(monitor['scale'])
-                config = read_json(CONFIG, {}) or {}
-                factor = float(config.get('apps', {}).get('digger', {}).get('window_scale', 4))
+                factor = float(geometry['scale'])
+                base_w, base_h = float(geometry['width']), float(geometry['height'])
                 max_w, max_h = monitor['width'] / scale - 48, monitor['height'] / scale - 80
-                factor = min(max(1, factor), max_w * scale / 640, max_h * scale / 400)
-                width, height = round(640 * factor / scale), round(400 * factor / scale)
+                factor = min(max(1, factor), max_w * scale / base_w, max_h * scale / base_h)
+                width, height = round(base_w * factor / scale), round(base_h * factor / scale)
                 if not window.get('floating'):
                     dispatch('float', window, action='toggle')
                 dispatch('resize', window, x=width, y=height)
                 dispatch('center', window)
                 self.sized[window['address']] = None
             except (ValueError, KeyError, StopIteration, OSError, subprocess.TimeoutExpired):
-                LOG.exception('Could not enlarge Digger window')
+                LOG.exception('Could not apply configured window size')
 
     def refresh(self):
         try:
@@ -374,7 +410,7 @@ class DesktopUI:
                     self.root.destroy()
                     return
                 app = message.get('app')
-                if message.get('op') == 'launch' and app in APPS:
+                if message.get('op') == 'launch' and app in definitions(self.state):
                     self.launch(app)
                 elif message.get('op') == 'dashboard':
                     self.show_dashboard(app)
@@ -382,11 +418,15 @@ class DesktopUI:
                 if future.done():
                     self.jobs.remove((future, callback))
                     callback(future.result())
+            previous_definitions = self.state.get('app_definitions')
+            previous_apps = self.state.get('enabled_apps')
             self.state = read_json(USAGE, {}) or {}
             outside = needs_schedule_approval(self.state, self.selected)
             if self.dashboard and not self.busy and (self.dashboard_free != self.state.get('free_minute_available')
-                                                     or self.grant_mode != outside):
+                                                     or self.grant_mode != outside or previous_apps != self.state.get('enabled_apps') or previous_definitions != self.state.get('app_definitions')):
                 self.show_dashboard(self.selected)
+            if self.overlay_app and self.overlay_app not in definitions(self.state):
+                self.dismiss()
             self.update_dashboard()
             windows = clients()
             if not self.overlay:
@@ -402,13 +442,13 @@ class DesktopUI:
                         self.show_blocked(app, retry=retry)
                 else:
                     for window in windows:
-                        app = window_app(window)
-                        if app in APPS and app_view(self.state, app)['blocked']:
+                        app = window_app(window, self.state)
+                        if app in definitions(self.state) and app_view(self.state, app)['blocked']:
                             self.show_blocked(app)
                             break
                     if time.monotonic() - self.last_capture > 5 and not self.overlay:
                         focused = next((w for w in windows if w.get('focusHistoryID') == 0), None)
-                        app = window_app(focused or {})
+                        app = window_app(focused or {}, self.state)
                         if app and not app_view(self.state, app)['blocked']:
                             self.capture(app, focused)
                             self.last_capture = time.monotonic()

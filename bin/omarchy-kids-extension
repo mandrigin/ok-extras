@@ -1,0 +1,79 @@
+#!/usr/bin/python3
+"""Explicitly install an optional integration; core upgrades install no apps."""
+import argparse
+import copy
+import json
+import os
+from pathlib import Path
+import pwd
+import shutil
+import subprocess
+import sys
+sys.path.insert(0, '/opt/omarchy-kids-policy')
+from kids_policy.configver import backup
+from kids_policy.service import load_config
+from kids_policy.registry import identifier, validate
+from kids_policy.paths import CONFIG, ALLOWLIST
+from kids_policy.store import write_json
+
+ROOT = Path('/opt/omarchy-kids-policy/extensions')
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('action', choices=['list', 'install'])
+parser.add_argument('extension', nargs='?', type=identifier)
+args = parser.parse_args()
+if args.action == 'list':
+    for path in sorted(ROOT.glob('*/extension.json')):
+        manifest = json.loads(path.read_text())
+        print(f"{manifest['id']}: {manifest['description']}")
+    raise SystemExit(0)
+if os.geteuid() != 0:
+    raise SystemExit('Run installation with sudo')
+if not args.extension:
+    parser.error('Choose an extension to install')
+directory = ROOT / args.extension
+if not (directory / 'extension.json').is_file():
+    raise SystemExit('Unknown extension')
+os.environ['OMARCHY_PATH'] = '/usr/share/omarchy'
+os.environ['PATH'] = '/usr/share/omarchy/bin:/usr/local/bin:/usr/bin'
+manifest = json.loads((directory / 'extension.json').read_text())
+config = load_config()
+updated = copy.deepcopy(config)
+for key in ('budgets', 'apps'):
+    for name, spec in manifest.get(key, {}).items():
+        updated[key].setdefault(name, spec)
+updated = validate(updated)
+if (directory / 'install.sh').exists():
+    subprocess.run(['bash', str(directory / 'install.sh')], check=True)
+for name, spec in manifest.get('apps', {}).items():
+    if not Path(updated['apps'][name]['argv'][0]).exists():
+        raise SystemExit(name + ' is not installed. Install it separately or configure its argv first.')
+for path in (directory / 'bin').glob('*'):
+    shutil.copy2(path, Path('/usr/bin') / path.name)
+    (Path('/usr/bin') / path.name).chmod(0o755)
+updated.setdefault('extensions', [])
+if args.extension not in updated['extensions']:
+    updated['extensions'].append(args.extension)
+allow = copy.deepcopy(config['allowlist'])
+for name, spec in manifest.get('apps', {}).items():
+    group = allow.setdefault(spec.get('category', 'apps'), [])
+    if name not in group:
+        group.append(name)
+backup(CONFIG, 'policy')
+backup(ALLOWLIST, 'allowlist')
+write_json(CONFIG, updated)
+configure = directory / 'configure.py'
+try:
+    if configure.exists():
+        subprocess.run(['python3', str(configure), pwd.getpwuid(config['child_uid']).pw_name], check=True)
+    catalog = directory / 'catalog.json'
+    catalog_target = CONFIG.parent / 'extensions' / (args.extension + '.json')
+    if catalog.exists() and not catalog_target.exists():
+        catalog_target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(catalog, catalog_target)
+    write_json(ALLOWLIST, allow)
+    subprocess.run(['/usr/bin/omarchy-kids-reload'], check=True)
+except Exception:
+    write_json(CONFIG, config)
+    write_json(ALLOWLIST, config['allowlist'])
+    raise
+print('Installed and enabled:', args.extension)

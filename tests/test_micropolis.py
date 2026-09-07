@@ -2,8 +2,8 @@ import datetime as dt
 import unittest
 
 from kids_policy.budget import Policy, empty_day
-from kids_policy.classify import classify
-from kids_policy.migrate import default_config
+from tests.fixtures import classify
+from tests.fixtures import default_config
 
 
 class MicropolisTests(unittest.TestCase):

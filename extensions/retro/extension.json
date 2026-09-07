@@ -1,0 +1,41 @@
+{
+  "id": "retro",
+  "description": "Retro games",
+  "apps": {
+    "retro": {
+      "desktop": "kids-retro.desktop",
+      "icon": "retroarch",
+      "label": "Retro games",
+      "budget": "retro",
+      "schedule": true,
+      "argv": [
+        "/usr/bin/retroarch",
+        "--menu",
+        "--config",
+        "/etc/omarchy-kids/retroarch.cfg"
+      ],
+      "match": {
+        "process": [
+          {
+            "names": [
+              "retroarch"
+            ],
+            "executables": [
+              "retroarch"
+            ]
+          }
+        ],
+        "windows": [
+          "retroarch"
+        ]
+      },
+      "category": "games"
+    }
+  },
+  "budgets": {
+    "retro": {
+      "label": "Retro games",
+      "daily_minutes": 30
+    }
+  }
+}

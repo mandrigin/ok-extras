@@ -6,9 +6,6 @@ from pathlib import Path
 
 sys.path.insert(0, '/opt/omarchy-kids-policy')
 from kids_policy.client import request
-from kids_policy.migrate import default_config
-from kids_policy.paths import CONFIG
-from kids_policy.store import read_json
 
 SAFE_ENV = (
     'PATH', 'HOME', 'USER', 'LOGNAME', 'LANG', 'LC_ALL', 'LANGUAGE',
@@ -21,26 +18,30 @@ SAFE_ENV = (
 
 def main():
     if len(sys.argv) != 2:
-        sys.stderr.write('Usage: omarchy-kids-launch <digger|micropolis|retro|minecraft|stardew_valley|vlc>\n')
+        sys.stderr.write('Usage: omarchy-kids-launch APP_ID\n')
         sys.exit(2)
     if os.geteuid() != 0:
         sys.stderr.write('launch helper must run as root via sudo\n')
         sys.exit(1)
     app = sys.argv[1]
     request({'op': 'may_launch', 'app': app})
-    config = default_config()
-    loaded = read_json(CONFIG, {}) or {}
-    config.update({key: value for key, value in loaded.items() if key != 'apps'})
-    if isinstance(loaded.get('apps'), dict):
-        config['apps'].update(loaded['apps'])
+    from kids_policy.service import load_config
+    config = load_config()
     spec = config['apps'][app]
     argv = list(spec['argv'])
     if not Path(argv[0]).exists():
         raise SystemExit(f'{app} is not installed')
     uid = int(config['child_uid'])
     user = pwd.getpwuid(uid)
+    ready, proceed = os.pipe()
     pid = os.fork()
     if pid == 0:
+        os.close(proceed)
+        # Adopt before exec: fast launchers must not spawn outside their app group.
+        permitted = os.read(ready, 1)
+        os.close(ready)
+        if permitted != b'1':
+            os._exit(1)
         os.setsid()
         os.chdir(user.pw_dir)
         devnull = os.open('/dev/null', os.O_RDWR)
@@ -62,8 +63,14 @@ def main():
             ),
             'PATH': '/usr/local/bin:/usr/bin',
         })
+        env.update(spec.get('env', {}))
         os.execvpe(argv[0], argv, env)
-    request({'op': 'adopt', 'app': app, 'pid': pid})
+    os.close(ready)
+    try:
+        request({'op': 'adopt', 'app': app, 'pid': pid})
+        os.write(proceed, b'1')
+    finally:
+        os.close(proceed)
 
 
 if __name__ == '__main__':

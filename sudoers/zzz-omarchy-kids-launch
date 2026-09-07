@@ -1,4 +1,0 @@
-vltn ALL=(root) NOPASSWD: /usr/bin/omarchy-kids-launch
-vltn ALL=(root) NOPASSWD: /usr/bin/omarchy-kids-grant --free-minute
-Defaults!/usr/bin/omarchy-kids-launch env_keep += "DISPLAY WAYLAND_DISPLAY XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS HYPRLAND_INSTANCE_SIGNATURE XDG_SESSION_TYPE XDG_CURRENT_DESKTOP LIBGL_ALWAYS_SOFTWARE"
-Defaults:parent !rootpw

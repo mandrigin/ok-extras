@@ -1,0 +1,14 @@
+#!/usr/bin/python3
+"""The only no-password allowance helper: one minute, once per day."""
+import os
+import sys
+sys.path.insert(0, '/opt/omarchy-kids-policy')
+from kids_policy.client import request
+from kids_policy.registry import identifier
+if os.geteuid() != 0 or len(sys.argv) != 2:
+    raise SystemExit('Usage: sudo omarchy-kids-free-minute BUDGET_ID')
+try:
+    reply = request({'op': 'free_minute', 'budget': identifier(sys.argv[1])})
+    print(reply.get('grant', {}).get('id', 'ok'))
+except (RuntimeError, ValueError) as error:
+    raise SystemExit(str(error))

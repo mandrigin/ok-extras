@@ -1,0 +1,223 @@
+{
+  "retro": {
+    "desktop": "kids-retro.desktop",
+    "icon": "retroarch",
+    "label": "Retro games",
+    "budget": "retro",
+    "schedule": true,
+    "argv": [
+      "/usr/bin/retroarch",
+      "--menu",
+      "--config",
+      "/etc/omarchy-kids/retroarch.cfg"
+    ],
+    "match": {
+      "process": [
+        {
+          "names": [
+            "retroarch"
+          ],
+          "executables": [
+            "retroarch"
+          ]
+        }
+      ],
+      "windows": [
+        "retroarch"
+      ]
+    },
+    "category": "games"
+  },
+  "micropolis": {
+    "desktop": "micropolis.desktop",
+    "icon": "applications-games",
+    "label": "Micropolis",
+    "budget": "micropolis",
+    "schedule": true,
+    "argv": [
+      "/usr/local/bin/micropolis"
+    ],
+    "match": {
+      "process": [
+        {
+          "names": [
+            "micropolis"
+          ],
+          "executables": [
+            "micropolis"
+          ]
+        },
+        {
+          "names": [
+            "java",
+            "javaw"
+          ],
+          "executables": [
+            "java",
+            "javaw"
+          ],
+          "command_contains": [
+            "micropolis"
+          ]
+        }
+      ],
+      "windows": [
+        "micropolis"
+      ]
+    },
+    "category": "games"
+  },
+  "digger": {
+    "desktop": "digger.desktop",
+    "icon": "input-gaming",
+    "label": "Digger",
+    "budget": "digger",
+    "schedule": true,
+    "argv": [
+      "/usr/local/bin/digger"
+    ],
+    "match": {
+      "process": [
+        {
+          "names": [
+            "digger"
+          ],
+          "executables": [
+            "digger"
+          ]
+        }
+      ],
+      "windows": [
+        "digger",
+        "d i g g e r"
+      ]
+    },
+    "category": "games",
+    "window": {
+      "width": 640,
+      "height": 400,
+      "scale": 4
+    }
+  },
+  "minecraft": {
+    "desktop": "minecraft-vm.desktop",
+    "icon": "org.prismlauncher.PrismLauncher",
+    "label": "Minecraft",
+    "budget": "shared",
+    "schedule": true,
+    "argv": [
+      "/usr/local/bin/minecraft-vm"
+    ],
+    "match": {
+      "process": [
+        {
+          "names": [
+            "java",
+            "javaw"
+          ],
+          "executables": [
+            "java",
+            "javaw"
+          ],
+          "command_contains": [
+            "minecraft",
+            "prismlauncher",
+            "multimc"
+          ]
+        }
+      ],
+      "windows": [
+        "minecraft",
+        "prismlauncher",
+        "org.prismlauncher"
+      ]
+    },
+    "category": "games"
+  },
+  "stardew_valley": {
+    "desktop": "stardew-valley.desktop",
+    "icon": "steam",
+    "label": "Stardew Valley",
+    "budget": "shared",
+    "schedule": true,
+    "argv": [
+      "/usr/bin/steam",
+      "steam://rungameid/413150"
+    ],
+    "match": {
+      "process": [
+        {
+          "names": [
+            "stardew valley",
+            "stardewvalley",
+            "stardewmoddingap"
+          ],
+          "executables": [
+            "stardew valley",
+            "stardewvalley",
+            "stardewmoddingapi"
+          ]
+        }
+      ],
+      "windows": [
+        "stardew",
+        "steam_app_413150"
+      ]
+    },
+    "category": "games"
+  },
+  "vlc": {
+    "desktop": "kids-videos.desktop",
+    "icon": "video-x-generic",
+    "label": "Kids Videos",
+    "budget": "vlc",
+    "schedule": true,
+    "argv": [
+      "/usr/bin/vlc",
+      "--no-network",
+      "/srv/kids-media/videos/kids-videos.m3u"
+    ],
+    "match": {
+      "process": [
+        {
+          "names": [
+            "vlc",
+            "vlc-wrapper"
+          ],
+          "executables": [
+            "vlc",
+            "vlc-wrapper"
+          ]
+        }
+      ],
+      "windows": [
+        "vlc",
+        "kids videos"
+      ]
+    },
+    "category": "videos"
+  },
+  "screentime": {
+    "label": "Screen Time",
+    "desktop": "omarchy-kids-screentime.desktop",
+    "icon": "preferences-system-time",
+    "schedule": false,
+    "budget": null,
+    "argv": [
+      "/usr/bin/omarchy-kids-ui"
+    ],
+    "launcher_argv": [
+      "/usr/bin/omarchy-kids-ui"
+    ],
+    "control": true,
+    "category": "tools",
+    "match": {
+      "windows": [
+        "omarchy kids",
+        "omarchy-kids-screentime",
+        "omarchy-kids-hud",
+        "omarchy-kids-block"
+      ]
+    }
+  }
+}

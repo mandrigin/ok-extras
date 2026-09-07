@@ -5,7 +5,7 @@ from pathlib import Path
 import re
 
 from kids_policy.allowlist import enabled_ids
-from kids_policy.migrate import default_config
+from kids_policy.configver import migrate_policy
 
 MANIFEST = Path('/var/lib/omarchy-kids/launcher.json')
 SYSTEM_ROOTS = (Path('/usr/share/applications'), Path('/usr/local/share/applications'),
@@ -13,10 +13,10 @@ SYSTEM_ROOTS = (Path('/usr/share/applications'), Path('/usr/local/share/applicat
 
 
 def launcher_entries(config):
-    defaults = default_config()['apps']
+    defaults = migrate_policy(config)[0]['apps']
     result = []
     for app in dict.fromkeys(enabled_ids(config)):
-        if not isinstance(app, str) or not re.fullmatch(r'[a-z0-9_]+', app):
+        if not isinstance(app, str) or not re.fullmatch(r'[a-z][a-z0-9_-]{0,63}', app):
             raise ValueError('Invalid allow-list app ID')
         spec = {**defaults.get(app, {}), **config.get('apps', {}).get(app, {})}
         filename = spec.get('desktop')
@@ -28,7 +28,8 @@ def launcher_entries(config):
         if not isinstance(argv, list) or not argv or any(not isinstance(arg, str) for arg in argv):
             raise ValueError('Invalid launcher command for ' + app)
         result.append({'app': app, 'desktop': filename, 'label': spec.get('label', app),
-                       'icon': spec.get('icon', 'application-x-executable'), 'argv': argv})
+                       'icon': spec.get('icon', 'application-x-executable'), 'argv': argv,
+                       'categories': spec.get('desktop_categories', ['Utility'])})
     if len({entry['desktop'] for entry in result}) != len(result):
         raise ValueError('Two allowed apps use the same desktop filename')
     return result
@@ -57,7 +58,8 @@ def render(entry):
             f'Name={value(entry["label"])}\n'
             f'Exec={" ".join(exec_arg(arg) for arg in entry["argv"])}\n'
             f'Icon={value(entry["icon"])}\nTerminal=false\n'
-            'Categories=Game;\nNoDisplay=false\nHidden=false\nX-Omarchy-Kids-Managed=true\n')
+            f'Categories={value(";".join(entry.get("categories", ["Utility"])))};\n'
+            'NoDisplay=false\nHidden=false\nX-Omarchy-Kids-Managed=true\n')
 
 
 def replace_if_changed(path, contents, owner=None):

@@ -13,7 +13,7 @@ from unittest.mock import patch
 from kids_policy.allowlist import enabled_ids
 from kids_policy.configver import migrate_allowlist
 from kids_policy.launcher import launcher_entries, sync_desktop_files, sync
-from kids_policy.migrate import default_config
+from tests.fixtures import default_config
 from kids_policy.budget import Policy, empty_day
 from kids_policy.service import Daemon
 
@@ -103,14 +103,14 @@ class LauncherTests(unittest.TestCase):
         self.config['allowlist']['tools'] = ['screentime']
         manifest = self.home / 'launcher.json'
         with patch('kids_policy.launcher.SYSTEM_ROOTS', [self.system]):
-            sync(self.home, self.config, 'valentin', manifest=manifest)
+            sync(self.home, self.config, 'kid', manifest=manifest)
         ids = json.loads(manifest.read_text())
-        self.assertEqual(ids['user'], 'valentin')
+        self.assertEqual(ids['user'], 'kid')
         self.assertEqual(set(ids['desktop_ids']), {name[:-8] for name in self.visible()})
         self.assertIn('Exec=/usr/bin/omarchy-kids-ui', (self.dest / 'omarchy-kids-screentime.desktop').read_text())
 
     def test_live_config_change_updates_menu_and_permissions_without_resetting_usage(self):
-        uid = os.getuid()
+        uid = 1000
         self.config['child_uid'] = uid
         policy = self.system / 'policy.json'
         allow = self.system / 'allowlist.json'
@@ -122,7 +122,9 @@ class LauncherTests(unittest.TestCase):
         noon = dt.datetime.now().replace(hour=12)
         daemon.policy = Policy(empty_day(str(noon.date())), self.config, noon, 0)
         daemon.policy.digger.used = 123
-        account = SimpleNamespace(pw_dir=str(self.home), pw_uid=uid, pw_gid=os.getgid(), pw_name='valentin')
+        from unittest.mock import Mock
+        daemon.cgroups = Mock()
+        account = SimpleNamespace(pw_dir=str(self.home), pw_uid=os.getuid(), pw_gid=os.getgid(), pw_name='kid')
         with patch('kids_policy.service.CONFIG', policy), patch('kids_policy.service.ALLOWLIST', allow), \
              patch('kids_policy.configver.HISTORY', self.system / 'history'), \
              patch('kids_policy.service.pwd.getpwuid', return_value=account), \
@@ -189,15 +191,15 @@ Item {
     def test_live_filter_rejects_removed_and_new_apps_without_affecting_parent(self):
         code = (ROOT / 'shell/LauncherPolicy.js').read_text() + '''
 const assert = require('node:assert/strict');
-let m = {user: 'valentin', desktop_ids: ['digger', 'kids-videos']};
-assert.equal(permits(m, 'valentin', 'digger.desktop'), true);
-assert.equal(permits(m, 'valentin', 'steam'), false);
-assert.equal(permits(m, 'valentin', 'newly-installed'), false);
+let m = {user: 'kid', desktop_ids: ['digger', 'kids-videos']};
+assert.equal(permits(m, 'kid', 'digger.desktop'), true);
+assert.equal(permits(m, 'kid', 'steam'), false);
+assert.equal(permits(m, 'kid', 'newly-installed'), false);
 assert.equal(permits(m, 'parent', 'steam'), true);
 m.desktop_ids = [];
-assert.equal(permits(m, 'valentin', 'digger'), false);
+assert.equal(permits(m, 'kid', 'digger'), false);
 m.desktop_ids = ['micropolis'];
-assert.equal(permits(m, 'valentin', 'micropolis'), true);
-assert.equal(permits(m, 'valentin', 'digger'), false);
+assert.equal(permits(m, 'kid', 'micropolis'), true);
+assert.equal(permits(m, 'kid', 'digger'), false);
 '''
         subprocess.run(['node', '-e', code], check=True)

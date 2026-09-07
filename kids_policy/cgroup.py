@@ -48,7 +48,7 @@ class CgroupTree:
             return False
 
     def freeze_all(self, apps, frozen=True):
-        return all(self.freeze(app, frozen) for app in apps)
+        return all([self.freeze(app, frozen) for app in apps])
 
     def pids(self, app):
         try:

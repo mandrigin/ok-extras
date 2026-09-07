@@ -1,6 +1,6 @@
 import unittest
 
-from kids_policy.classify import classify
+from tests.fixtures import classify
 
 
 class ClassifyTests(unittest.TestCase):

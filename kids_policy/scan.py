@@ -38,7 +38,7 @@ def is_stopped(pid):
         return False
 
 
-def games(uid):
+def games(uid, config):
     found = {}
     running = set()
     for entry in os.listdir('/proc'):
@@ -54,7 +54,12 @@ def games(uid):
             command = (proc / 'cmdline').read_bytes().replace(b'\0', b' ').decode(errors='replace')
             cwd = os.readlink(proc / 'cwd')
             comm = (proc / 'comm').read_text(errors='replace').strip()
-            app = classify(comm, executable, command, cwd)
+            membership = (proc / 'cgroup').read_text()
+            owned = [line.rsplit('/', 1)[-1] for line in membership.splitlines()
+                     if line.startswith('0::/omarchy-kids/') and line.count('/') == 2]
+            app = next((name for name in owned if name in config.get('apps', {})), None)
+            if app is None:
+                app = classify(config, comm, executable, command, cwd)
             if app and identity(pid) == ident:
                 found.setdefault(app, set()).add(ident)
                 if not is_stopped(pid):
