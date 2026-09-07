@@ -57,8 +57,8 @@ The updater fetches a clean copy of this repo and runs `upgrade.sh`. It preserve
 machine-specific edits in your checkout, existing budgets, schedules and daily
 usage. Backups go to `/var/lib/omarchy-kids/upgrade-backup-*`.
 
-This upgrade installs Micropolis, enables its menu entry and gives it an independent
-30-minute daily budget. It builds a pinned Digger release with a resizable SDL
+This upgrade installs Micropolis with an independent 30-minute daily budget;
+its menu entry follows the parent's allow-list. It builds a pinned Digger release with a resizable SDL
 window. Digger opens at four times its native pixel dimensions, fitted to the
 monitor and floating. Existing running games retain their executable and position.
 
@@ -72,6 +72,29 @@ same controls, using the last captured preview when available.
 The persistent user UI needs Tk and Pillow, installed by the upgrade. The root
 policy daemon remains responsible for enforcing limits. Desktop time is a separate
 native limit: parent grants from the app controls now coordinate both limits.
+
+## Launcher and allowed apps
+
+`/etc/omarchy-kids/allowlist.json` is the source of truth for launcher visibility
+and launch permissions. Add or remove app IDs in `games`, `videos`, and `tools`;
+an empty list stays empty. Installed apps that are not listed remain hidden.
+Upgrades preserve this list and do not automatically re-enable games.
+
+The daemon watches policy and allow-list changes and generates the child's
+desktop entries plus `/var/lib/omarchy-kids/launcher.json`. Omarchy's app library
+reads that manifest for both search results and launching, including freshly
+installed apps. Removing and re-adding an app restores its working launcher.
+The native school-mode filter can further restrict this list during school time.
+
+Launcher names, icons, and desktop filenames live with the corresponding app
+in `policy.json` (`label`, `icon`, `desktop`). Game entries keep launching through
+the existing time-control helper. Original user desktop entries are backed up
+under `~/.local/share/omarchy-kids/launcher-backups`. Parent sessions retain their
+normal launcher. Run `sudo omarchy-kids-apply-allowlist` to force a refresh.
+
+The update adds a small adapter to native `AppLibrary.qml` and restarts the shell
+to load it; running games remain open. Reapply the upgrade if an Omarchy update
+replaces that file. Unsupported versions are rejected by the preflight check.
 
 Tests: `python3 -m unittest discover -s tests -v`. For real widget tests, install
 Tk, Pillow and Xvfb, then run

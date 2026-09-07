@@ -21,6 +21,7 @@ from kids_policy.scan import games, identity
 from kids_policy.schedule import minutes_until_cutoff, next_open_label
 from kids_policy.store import read_json, write_json
 from kids_policy import desktop
+from kids_policy import launcher
 
 LOG = logging.getLogger('omarchy-kids-policy')
 
@@ -102,6 +103,30 @@ class Daemon:
         self.sock = None
         self.desktop = {}
         self.refresh_desktop()
+        self.launcher_signature = None
+
+    def sync_configuration(self):
+        account = pwd.getpwuid(self.uid)
+        home = Path(account.pw_dir)
+        paths = [CONFIG, ALLOWLIST, *launcher.SYSTEM_ROOTS,
+                 home / '.local/share/applications',
+                 home / '.local/share/flatpak/exports/share/applications']
+        signature = tuple((str(path), path.stat().st_mtime_ns if path.exists() else None) for path in paths)
+        if signature == self.launcher_signature:
+            return
+        # Never turn a temporarily incomplete JSON write into default permissions.
+        policy = json.loads(CONFIG.read_text())
+        allowed = json.loads(ALLOWLIST.read_text())
+        if not isinstance(policy, dict) or not isinstance(allowed, (dict, list)):
+            raise ValueError('Invalid kids policy or allow-list')
+        updated = load_config()
+        if int(updated['child_uid']) != self.uid:
+            raise ValueError('Changing the child account requires a service restart')
+        launcher.sync(home, updated, account.pw_name, (account.pw_uid, account.pw_gid))
+        self.config = updated
+        self.policy.config = updated
+        self.refresh_limits()
+        self.launcher_signature = signature
 
     def refresh_desktop(self):
         self.desktop = desktop.status(self.uid)
@@ -242,6 +267,10 @@ class Daemon:
             return {'ok': False, 'error': 'unknown app'}
         now = dt.datetime.now()
         if hasattr(self, 'desktop'):
+            try:
+                self.sync_configuration()
+            except (OSError, ValueError) as exc:
+                return {'ok': False, 'error': 'Could not read current app permissions: ' + str(exc)}
             self.refresh_desktop()
         _found, running = games(self.uid)
         self.policy.tick(now, time.monotonic(), running)
@@ -379,6 +408,10 @@ class Daemon:
         try:
             while self.running:
                 now = dt.datetime.now()
+                try:
+                    self.sync_configuration()
+                except (OSError, ValueError) as exc:
+                    LOG.error('Launcher configuration not applied: %s', exc)
                 found, running = games(self.uid)
                 self.refresh_desktop()
                 blocked, reasons = self.tick_policy(now, time.monotonic(), running)

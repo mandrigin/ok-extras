@@ -42,11 +42,6 @@ def main():
     data['apps']['digger'].setdefault('window_scale', 4)
     data.setdefault('micropolis_daily_minutes', 30)
     config.write_text(json.dumps(data, indent=2) + '\n')
-    allowlist = Path('/etc/omarchy-kids/allowlist.json')
-    data = json.loads(allowlist.read_text())
-    if 'micropolis' not in data.setdefault('games', []):
-        data['games'].append('micropolis')
-    allowlist.write_text(json.dumps(data, indent=2) + '\n')
 
 
 if __name__ == '__main__':

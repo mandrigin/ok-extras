@@ -53,36 +53,48 @@ def default_config(uid=1000):
         },
         'apps': {
             'retro': {
+                'desktop': 'kids-retro.desktop', 'icon': 'retroarch',
                 'label': 'Retro games', 'budget': 'retro', 'schedule': True,
                 'argv': ['/usr/bin/retroarch', '--menu', '--config', '/etc/omarchy-kids/retroarch.cfg'],
             },
             'micropolis': {
+                'desktop': 'micropolis.desktop', 'icon': 'applications-games',
                 'label': 'Micropolis', 'budget': 'micropolis', 'schedule': True,
                 'argv': ['/usr/local/bin/micropolis'],
             },
             'digger': {
+                'desktop': 'digger.desktop', 'icon': 'input-gaming',
                 'label': 'Digger',
                 'budget': 'digger',
                 'schedule': True,
                 'argv': ['/usr/local/bin/digger'],
             },
             'minecraft': {
+                'desktop': 'minecraft-vm.desktop', 'icon': 'org.prismlauncher.PrismLauncher',
                 'label': 'Minecraft',
                 'budget': 'shared',
                 'schedule': True,
                 'argv': ['/usr/local/bin/minecraft-vm'],
             },
             'stardew_valley': {
+                'desktop': 'stardew-valley.desktop', 'icon': 'steam',
                 'label': 'Stardew Valley',
                 'budget': 'shared',
                 'schedule': True,
                 'argv': ['/usr/bin/steam', 'steam://rungameid/413150'],
             },
             'vlc': {
+                'desktop': 'kids-videos.desktop', 'icon': 'video-x-generic',
                 'label': 'Kids Videos',
                 'budget': None,
                 'schedule': True,
                 'argv': ['/usr/bin/vlc', '--no-network', '/srv/kids-media/videos/kids-videos.m3u'],
+            },
+            'screentime': {
+                'label': 'Screen Time', 'desktop': 'omarchy-kids-screentime.desktop',
+                'icon': 'preferences-system-time', 'schedule': False, 'budget': None,
+                'argv': ['/usr/bin/omarchy-kids-ui'],
+                'launcher_argv': ['/usr/bin/omarchy-kids-ui'],
             },
         },
     }

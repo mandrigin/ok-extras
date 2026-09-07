@@ -20,6 +20,7 @@ PY
 [[ -n ${CHILD:-} ]] || exit 1
 cd "$SRC"
 python3 packaging/configure_desktop.py --check
+python3 packaging/configure_launcher.py --check
 omarchy-pkg-add tk python-pillow gcc make patch pkgconf sdl2-compat zlib libx11 vlc-plugin-ffmpeg retroarch libretro-genesis-plus-gx libretro-nestopia retroarch-assets-ozone
 command -v java >/dev/null || omarchy-pkg-add jre21-openjdk
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
@@ -30,6 +31,8 @@ chmod 700 "$BACKUP"
 cp -a /opt/omarchy-kids-policy "$BACKUP/code"
 cp -a /etc/omarchy-kids "$BACKUP/config"
 cp -a /usr/share/omarchy/lib/parent/omarchy_kids/screen_time/service.py "$BACKUP/native-time-service.py"
+cp -a /usr/share/omarchy/shell/services/AppLibrary.qml "$BACKUP/AppLibrary.qml"
+cp -a /usr/share/omarchy/shell/plugins/menu/Menu.qml "$BACKUP/Menu.qml"
 cp -a /etc/sudoers.d/zzz-omarchy-kids-launch "$BACKUP/sudoers"
 [[ ! -f $CHILD_HOME/.config/omarchy/shell.json ]] || cp -a "$CHILD_HOME/.config/omarchy/shell.json" "$BACKUP/shell.json"
 echo "Backup: $BACKUP"
@@ -51,6 +54,7 @@ install -d -m 0755 /opt/omarchy-kids-policy
 cp -a kids_policy hud.py viewer.py shell /opt/omarchy-kids-policy/
 chown -R root:root /opt/omarchy-kids-policy
 python3 packaging/configure_desktop.py
+python3 packaging/configure_launcher.py
 if ! systemctl restart omarchy-kids-timed.service; then
   cp -a "$BACKUP/native-time-service.py" /usr/share/omarchy/lib/parent/omarchy_kids/screen_time/service.py
   systemctl restart omarchy-kids-timed.service
@@ -88,9 +92,7 @@ visudo -cf "$SUDO_STAGE"
 install -m 0440 "$SUDO_STAGE" /etc/sudoers.d/zzz-omarchy-kids-launch
 
 install -d -o "$CHILD_UID" -g "$CHILD_GID" "$CHILD_HOME/.local/share/applications" "$CHILD_HOME/.config/systemd/user"
-for name in digger micropolis kids-retro kids-videos minecraft-vm stardew-valley omarchy-kids-screentime; do
-  install -m 0644 -o "$CHILD_UID" -g "$CHILD_GID" "desktop/$name.desktop" "$CHILD_HOME/.local/share/applications/$name.desktop"
-done
+# The allow-list reconciler generates the child's app launchers from policy.json.
 install -d -m 0755 /usr/local/share/applications
 install -m 0644 desktop/digger.desktop desktop/kids-videos.desktop desktop/micropolis.desktop /usr/local/share/applications/
 install -m 0644 -o "$CHILD_UID" -g "$CHILD_GID" user-systemd/omarchy-kids-hud.service "$CHILD_HOME/.config/systemd/user/omarchy-kids-hud.service"
@@ -99,6 +101,7 @@ python3 packaging/configure_ui.py "$CHILD"
 as_child systemctl --user daemon-reload
 as_child systemctl --user enable --now omarchy-kids-hud.service
 as_child omarchy-shell shell reloadConfig
+as_child omarchy-restart-shell
 sleep 2
 systemctl is-active omarchy-kids-policy.service
 as_child systemctl --user is-active omarchy-kids-hud.service

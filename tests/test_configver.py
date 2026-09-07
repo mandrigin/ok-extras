@@ -14,7 +14,7 @@ class ConfigVerTests(unittest.TestCase):
         self.assertTrue(changed)
         self.assertEqual(migrated['schema_version'], ALLOWLIST_SCHEMA)
         self.assertEqual(migrated['games'], ['digger', 'vlc'])
-        self.assertEqual(migrated['videos'], ['vlc'])
+        self.assertEqual(migrated['videos'], [])
 
     def test_allowlist_current_is_stable(self):
         data = {'schema_version': ALLOWLIST_SCHEMA, 'games': ['digger'], 'videos': ['vlc'], 'tools': ['screentime']}

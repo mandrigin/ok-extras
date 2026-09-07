@@ -2,16 +2,6 @@ from pathlib import Path
 
 DEFAULT_ALLOWLIST = ('digger', 'minecraft', 'stardew_valley', 'vlc', 'screentime')
 
-ALLOWED_DESKTOPS = {
-    'digger': 'digger.desktop',
-    'micropolis': 'micropolis.desktop',
-    'retro': 'kids-retro.desktop',
-    'minecraft': 'minecraft-vm.desktop',
-    'stardew_valley': 'stardew-valley.desktop',
-    'vlc': 'kids-videos.desktop',
-    'screentime': 'omarchy-kids-screentime.desktop',
-}
-
 ALLOWED_WINDOW = {
     'digger': ('digger', 'd i g g e r'),
     'micropolis': ('micropolis',),
@@ -43,18 +33,14 @@ def enabled_ids(config):
                 continue
             ids.extend(group)
         return tuple(ids)
-    if listed:
+    if isinstance(listed, (list, tuple)):
         return tuple(listed)
     return DEFAULT_ALLOWLIST
 
 
 def allowed_desktop_names(config):
-    names = set()
-    for app_id in enabled_ids(config):
-        desktop = ALLOWED_DESKTOPS.get(app_id)
-        if desktop:
-            names.add(desktop)
-    return names
+    from kids_policy.launcher import launcher_entries
+    return {entry['desktop'] for entry in launcher_entries(config)}
 
 
 def is_session(title='', class_name='', executable='', command=''):
@@ -74,34 +60,5 @@ def is_allowed_window(config, title='', class_name='', executable='', command=''
 
 
 def hide_desktop_files(home: Path, config):
-    allowed = allowed_desktop_names(config)
-    dest = Path(home) / '.local/share/applications'
-    dest.mkdir(parents=True, exist_ok=True)
-    seen = set()
-    roots = [
-        Path('/usr/share/applications'),
-        Path('/usr/local/share/applications'),
-        dest,
-    ]
-    hidden = 0
-    for root in roots:
-        if not root.is_dir():
-            continue
-        for path in root.glob('*.desktop'):
-            name = path.name
-            if name in allowed or name in seen:
-                continue
-            seen.add(name)
-            override = dest / name
-            if name in allowed:
-                continue
-            override.write_text(
-                '[Desktop Entry]\n'
-                'Type=Application\n'
-                f'Name={path.stem}\n'
-                'Exec=/usr/bin/true\n'
-                'NoDisplay=true\n'
-                'Hidden=true\n'
-            )
-            hidden += 1
-    return hidden
+    from kids_policy.launcher import sync_desktop_files
+    return sync_desktop_files(home, config)

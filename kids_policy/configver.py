@@ -38,15 +38,15 @@ def history(kind=None):
 
 def migrate_allowlist(data):
     original = data
-    if not data:
+    if data is None:
         data = {}
     if isinstance(data, list):
-        data = {'games': list(data), 'videos': [], 'tools': ['screentime']}
+        data = {'games': list(data), 'videos': [], 'tools': []}
     migrated = {
         'schema_version': ALLOWLIST_SCHEMA,
         'games': list(data.get('games') or []),
-        'videos': list(data.get('videos') or ['vlc']),
-        'tools': list(data.get('tools') or ['screentime']),
+        'videos': list(data.get('videos', [])),
+        'tools': list(data.get('tools', [])),
     }
     changed = not isinstance(original, dict) or original.get('schema_version') != ALLOWLIST_SCHEMA
     return migrated, changed
@@ -60,7 +60,9 @@ def migrate_policy(data, uid=1000):
     merged = dict(base)
     for key, value in data.items():
         if key == 'apps' and isinstance(value, dict):
-            merged['apps'] = {**base['apps'], **value}
+            merged['apps'] = {**base['apps'], **{
+                app: {**base['apps'].get(app, {}), **spec} for app, spec in value.items()
+            }}
         elif key != 'schema_version':
             merged[key] = value
     merged['schema_version'] = POLICY_SCHEMA

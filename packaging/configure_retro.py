@@ -47,11 +47,6 @@ def main():
         target.chmod(0o644)
     policy.setdefault('retro_daily_minutes', 30)
     policy_path.write_text(json.dumps(policy, indent=2) + '\n')
-    allow_path = Path('/etc/omarchy-kids/allowlist.json')
-    allow = json.loads(allow_path.read_text())
-    if 'retro' not in allow.setdefault('games', []):
-        allow['games'].append('retro')
-    allow_path.write_text(json.dumps(allow, indent=2) + '\n')
 
 
 if __name__ == '__main__':
